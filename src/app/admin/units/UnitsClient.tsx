@@ -1,8 +1,15 @@
 'use client'
 
-import React, { useState, useMemo, useTransition } from 'react'
+import React, { useState, useMemo, useTransition, useEffect } from 'react'
 import { saveUnit, deleteUnit, bulkUpdateUnitStatus, bulkUpdateUnitPrice } from '@/app/admin/actions'
 import { formatVND } from '@/lib/calculations'
+import {
+  getStoredUnits,
+  addOrUpdateStoredUnit,
+  deleteStoredUnit,
+  resetStoredUnitsToDefault,
+  saveStoredUnits,
+} from '@/lib/clientStore'
 
 interface UnitItem {
   id: string
@@ -38,6 +45,17 @@ const STATUS_BADGES: Record<string, { label: string; className: string }> = {
 export default function UnitsClient({ initialUnits }: Props) {
   const [units, setUnits] = useState<UnitItem[]>(initialUnits)
   const [isPending, startTransition] = useTransition()
+
+  // Hydrate from client storage on mount
+  useEffect(() => {
+    const stored = getStoredUnits(initialUnits)
+    setUnits(stored)
+    const handler = (e: any) => {
+      if (e.detail) setUnits(e.detail)
+    }
+    window.addEventListener('sun_units_updated', handler)
+    return () => window.removeEventListener('sun_units_updated', handler)
+  }, [initialUnits])
 
   // Filter states
   const [search, setSearch] = useState('')
@@ -158,25 +176,31 @@ export default function UnitsClient({ initialUnits }: Props) {
       return
     }
 
+    const basePrice = parseFloat(String(editingUnit.basePrice)) || 0
+    const area = parseFloat(String(editingUnit.area)) || 0
+    const pricePerM2 = area > 0 ? basePrice / area : 0
+
+    const unitPayload = {
+      ...editingUnit,
+      id: editingUnit.id || 'unit-' + Date.now(),
+      basePrice,
+      area,
+      pricePerM2,
+      priceChangeReason: priceChangeReason || 'Cập nhật từ Admin',
+    }
+
+    // 1. Immediately persist to client storage
+    const updated = addOrUpdateStoredUnit(unitPayload, units)
+    setUnits(updated)
+    setIsEditModalOpen(false)
+
+    // 2. Persist to server action in background
     startTransition(async () => {
-      const res = await saveUnit({
-        ...editingUnit,
-        priceChangeReason: priceChangeReason || 'Cập nhật từ Admin',
-      })
-      if (res.error) {
-        alert('Lỗi: ' + res.error)
-        return
+      try {
+        await saveUnit(unitPayload)
+      } catch (err) {
+        console.warn('Background server save note:', err)
       }
-      if (res.unit) {
-        if (editingUnit.id) {
-          setUnits((prev) =>
-            prev.map((u) => (u.id === editingUnit.id ? res.unit : u))
-          )
-        } else {
-          setUnits((prev) => [res.unit, ...prev])
-        }
-      }
-      setIsEditModalOpen(false)
     })
   }
 
@@ -184,14 +208,17 @@ export default function UnitsClient({ initialUnits }: Props) {
     if (!confirm(`Bạn có chắc chắn muốn xóa căn hộ ${code}? Hành động này không thể hoàn tác.`)) {
       return
     }
-    // Optimistic removal from UI immediately
-    setUnits((prev) => prev.filter((u) => u.id !== id))
+    // 1. Immediately delete from client storage
+    const updated = deleteStoredUnit(id, units)
+    setUnits(updated)
     setSelectedIds((prev) => prev.filter((i) => i !== id))
 
+    // 2. Delete on server in background
     startTransition(async () => {
-      const res = await deleteUnit(id)
-      if (res.error) {
-        console.warn('Lỗi khi xóa từ server:', res.error)
+      try {
+        await deleteUnit(id)
+      } catch (err) {
+        console.warn('Background server delete note:', err)
       }
     })
   }
@@ -201,17 +228,18 @@ export default function UnitsClient({ initialUnits }: Props) {
     if (!confirm(`Xác nhận đổi trạng thái của ${selectedIds.length} căn đã chọn thành "${STATUS_BADGES[bulkStatus]?.label || bulkStatus}"?`)) {
       return
     }
+    const updated = units.map((u) => (selectedIds.includes(u.id) ? { ...u, status: bulkStatus } : u))
+    saveStoredUnits(updated)
+    setUnits(updated)
+    setBulkActionType(null)
+    alert(`Đã cập nhật trạng thái thành công cho ${selectedIds.length} căn.`)
+
     startTransition(async () => {
-      const res = await bulkUpdateUnitStatus(selectedIds, bulkStatus)
-      if (res.error) {
-        alert('Lỗi: ' + res.error)
-        return
+      try {
+        await bulkUpdateUnitStatus(selectedIds, bulkStatus)
+      } catch (err) {
+        console.warn('Background bulk status note:', err)
       }
-      setUnits((prev) =>
-        prev.map((u) => (selectedIds.includes(u.id) ? { ...u, status: bulkStatus } : u))
-      )
-      setBulkActionType(null)
-      alert(`Đã cập nhật trạng thái thành công cho ${res.count} căn.`)
     })
   }
 
@@ -224,23 +252,33 @@ export default function UnitsClient({ initialUnits }: Props) {
     if (!confirm(`Xác nhận cập nhật giá của ${selectedIds.length} căn đã chọn thành ${formatVND(priceNum)}? Lịch sử giá sẽ được ghi nhận tự động.`)) {
       return
     }
+    const updated = units.map((u) =>
+      selectedIds.includes(u.id)
+        ? { ...u, basePrice: priceNum, pricePerM2: u.area > 0 ? priceNum / u.area : 0 }
+        : u
+    )
+    saveStoredUnits(updated)
+    setUnits(updated)
+    setBulkActionType(null)
+    setBulkPrice('')
+    alert(`Đã cập nhật giá thành công cho ${selectedIds.length} căn.`)
+
     startTransition(async () => {
-      const res = await bulkUpdateUnitPrice(selectedIds, priceNum, bulkPriceReason)
-      if (res.error) {
-        alert('Lỗi: ' + res.error)
-        return
+      try {
+        await bulkUpdateUnitPrice(selectedIds, priceNum, bulkPriceReason)
+      } catch (err) {
+        console.warn('Background bulk price note:', err)
       }
-      setUnits((prev) =>
-        prev.map((u) =>
-          selectedIds.includes(u.id)
-            ? { ...u, basePrice: priceNum, pricePerM2: u.area > 0 ? priceNum / u.area : 0 }
-            : u
-        )
-      )
-      setBulkActionType(null)
-      setBulkPrice('')
-      alert(`Đã cập nhật giá thành công cho ${res.count} căn.`)
     })
+  }
+
+  const handleResetToDefault = () => {
+    if (confirm('Khôi phục danh sách căn hộ về dữ liệu mẫu gốc ban đầu? Các căn bạn đã thêm hoặc sửa sẽ được làm mới.')) {
+      const resetList = resetStoredUnitsToDefault(initialUnits)
+      setUnits(resetList)
+      setSelectedIds([])
+      alert('Đã khôi phục dữ liệu gốc thành công.')
+    }
   }
 
   return (
@@ -254,6 +292,13 @@ export default function UnitsClient({ initialUnits }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleResetToDefault}
+            title="Khôi phục dữ liệu mẫu ban đầu nếu cần"
+            className="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-100 transition"
+          >
+            ↺ Khôi phục gốc
+          </button>
           <a
             href="/admin/import"
             className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-300 text-slate-700 bg-white rounded-lg text-sm font-medium hover:bg-slate-50 transition"

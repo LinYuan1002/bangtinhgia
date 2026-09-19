@@ -3,6 +3,7 @@
 import React, { useState, useCallback } from 'react'
 import * as XLSX from 'xlsx'
 import { processImport } from './actions'
+import { getStoredUnits, saveStoredUnits } from '@/lib/clientStore'
 
 // ── Field definitions for mapping ──
 const SYSTEM_FIELDS = [
@@ -140,6 +141,45 @@ export default function ImportPage() {
         rows: mapped,
         duplicateAction,
       })
+
+      // Sync imported valid rows to clientStore so they immediately appear in Units & Calculator
+      try {
+        const currentUnits = getStoredUnits([])
+        const importedUnits = mapped.map((m, idx) => ({
+          id: 'imported-' + Date.now() + '-' + idx,
+          unitCode: m.unitCode,
+          buildingCode: m.buildingCode || 'S1',
+          floorNumber: parseInt(m.floorNumber) || 1,
+          unitTypeName: m.unitTypeName || '1PN',
+          area: parseFloat(m.area) || 0,
+          direction: m.direction || '',
+          view: m.view || '',
+          basePrice: parseFloat(m.basePrice) || 0,
+          pricePerM2: parseFloat(m.area) > 0 ? parseFloat(m.basePrice) / parseFloat(m.area) : 0,
+          status: m.status || 'AVAILABLE',
+          imageUrl: m.imageUrl || null,
+          notes: m.notes || null,
+        }))
+
+        // Merge based on duplicateAction
+        let merged = [...currentUnits]
+        for (const imp of importedUnits) {
+          const existIdx = merged.findIndex((u) => u.unitCode === imp.unitCode)
+          if (existIdx >= 0) {
+            if (duplicateAction === 'UPDATE') {
+              merged[existIdx] = { ...merged[existIdx], ...imp }
+            } else if (duplicateAction === 'CREATE_NEW') {
+              merged.push(imp)
+            }
+          } else {
+            merged.push(imp)
+          }
+        }
+        saveStoredUnits(merged)
+      } catch (err) {
+        console.warn('Client store sync error:', err)
+      }
+
       setImportResult(result)
       setStep('result')
     } catch (e: any) {

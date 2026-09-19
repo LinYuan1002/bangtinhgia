@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useRef, useTransition } from 'react'
+import React, { useState, useMemo, useRef, useTransition, useEffect } from 'react'
 import {
   calculatePrice,
   calculatePaymentSchedule,
@@ -14,6 +14,12 @@ import {
 } from '@/lib/calculations'
 import { saveQuote } from '@/app/actions'
 import { QuotePreview } from './QuotePreview'
+import {
+  getStoredUnits,
+  getStoredPolicies,
+  getStoredPaymentPlans,
+  getStoredLoanPrograms,
+} from '@/lib/clientStore'
 import {
   Building,
   ArrowRight,
@@ -34,6 +40,13 @@ type Props = {
 }
 
 export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = [] }: Props) {
+  // Client-persisted lists that survive serverless refreshes
+  const [unitsList, setUnitsList] = useState<any[]>(units)
+  const [policiesList, setPoliciesList] = useState<any[]>(policies)
+  const [plansList, setPlansList] = useState<any[]>(paymentPlans)
+  const [loansList, setLoansList] = useState<any[]>(loanPrograms)
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
+
   const [selectedUnitId, setSelectedUnitId] = useState<string>(units[0]?.id || '')
   const [selectedPolicyId, setSelectedPolicyId] = useState<string>(policies[0]?.id || '')
   const [selectedPlanId, setSelectedPlanId] = useState<string>(paymentPlans[0]?.id || '')
@@ -66,10 +79,52 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
   const [isExporting, setIsExporting] = useState(false)
   const quoteRef = useRef<HTMLDivElement>(null)
 
+  // Sync with client storage on mount & listen to changes
+  useEffect(() => {
+    const storedU = getStoredUnits(units)
+    setUnitsList(storedU)
+    if (storedU.length > 0 && !storedU.some((u) => u.id === selectedUnitId)) {
+      setSelectedUnitId(storedU[0].id)
+    }
+
+    const storedP = getStoredPolicies(policies)
+    setPoliciesList(storedP)
+
+    const storedPl = getStoredPaymentPlans(paymentPlans)
+    setPlansList(storedPl)
+
+    const storedL = getStoredLoanPrograms(loanPrograms)
+    setLoansList(storedL)
+
+    const handleUnits = (e: any) => {
+      if (e.detail) {
+        setUnitsList(e.detail)
+        if (e.detail.length > 0 && !e.detail.some((u: any) => u.id === selectedUnitId)) {
+          setSelectedUnitId(e.detail[0].id)
+        }
+      }
+    }
+    const handlePolicies = (e: any) => e.detail && setPoliciesList(e.detail)
+    const handlePlans = (e: any) => e.detail && setPlansList(e.detail)
+    const handleLoans = (e: any) => e.detail && setLoansList(e.detail)
+
+    window.addEventListener('sun_units_updated', handleUnits)
+    window.addEventListener('sun_policies_updated', handlePolicies)
+    window.addEventListener('sun_plans_updated', handlePlans)
+    window.addEventListener('sun_loans_updated', handleLoans)
+
+    return () => {
+      window.removeEventListener('sun_units_updated', handleUnits)
+      window.removeEventListener('sun_policies_updated', handlePolicies)
+      window.removeEventListener('sun_plans_updated', handlePlans)
+      window.removeEventListener('sun_loans_updated', handleLoans)
+    }
+  }, [units, policies, paymentPlans, loanPrograms])
+
   // Update loan params when loan program changes
   const handleSelectLoanProgram = (progId: string) => {
     setSelectedLoanProgramId(progId)
-    const prog = loanPrograms.find((p) => p.id === progId)
+    const prog = loansList.find((p) => p.id === progId)
     if (prog) {
       setInterestRate(prog.annualInterestRate)
       setLoanTermMonths(prog.maxLoanTermMonths)
@@ -80,21 +135,22 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
 
   // Selected Entities
   const selectedUnit = useMemo(
-    () => units.find((u) => u.id === selectedUnitId) || null,
-    [units, selectedUnitId]
+    () => unitsList.find((u) => u.id === selectedUnitId) || unitsList[0] || null,
+    [unitsList, selectedUnitId]
   )
   const selectedPolicy = useMemo(
-    () => policies.find((p) => p.id === selectedPolicyId) || null,
-    [policies, selectedPolicyId]
+    () => policiesList.find((p) => p.id === selectedPolicyId) || null,
+    [policiesList, selectedPolicyId]
   )
   const selectedPlan = useMemo(
-    () => paymentPlans.find((p) => p.id === selectedPlanId) || null,
-    [paymentPlans, selectedPlanId]
+    () => plansList.find((p) => p.id === selectedPlanId) || null,
+    [plansList, selectedPlanId]
   )
   const selectedLoanProgram = useMemo(
-    () => loanPrograms.find((p) => p.id === selectedLoanProgramId) || null,
-    [loanPrograms, selectedLoanProgramId]
+    () => loansList.find((p) => p.id === selectedLoanProgramId) || null,
+    [loansList, selectedLoanProgramId]
   )
+
 
   // 1. PRICE CALCULATION (Deterministic via Engine)
   const priceResult = useMemo(() => {
@@ -226,7 +282,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
     })
   }
 
-  // 6. EXPORT PDF CLIENT-SIDE
+  // 6. EXPORT PDF & PRINT ACTIONS
   const handleExportPDF = async () => {
     if (!quoteRef.current || !selectedUnit) return
     setIsExporting(true)
@@ -234,19 +290,24 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
       const html2pdf = (await import('html2pdf.js')).default
       const element = quoteRef.current
       const opt: any = {
-        margin: 10,
+        margin: [8, 8, 8, 8],
         filename: `Bao_Gia_${selectedUnit.unitCode}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
+        html2canvas: { scale: 2, useCORS: true, scrollY: 0, scrollX: 0 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
       }
       await html2pdf().set(opt).from(element).save()
     } catch (error) {
       console.error('Lỗi khi xuất PDF:', error)
-      alert('Đã xảy ra lỗi khi tạo PDF.')
+      alert('Đã xảy ra lỗi khi tạo PDF. Bạn có thể dùng tính năng In / Lưu PDF chuẩn trình duyệt thay thế.')
     } finally {
       setIsExporting(false)
     }
+  }
+
+  const handlePrint = () => {
+    window.print()
   }
 
   const glassCard =
@@ -367,14 +428,14 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Mã căn hộ ({units.length} căn khả dụng)
+                  Mã căn hộ ({unitsList.length} căn khả dụng)
                 </label>
                 <select
                   value={selectedUnitId}
                   onChange={(e) => setSelectedUnitId(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500"
                 >
-                  {units.map((u) => (
+                  {unitsList.map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.unitCode} — Tòa {u.buildingCode || u.building} (Tầng {u.floorNumber || u.floor}) - {u.unitTypeName || u.unitType} - {formatVND(u.basePrice)}
                     </option>
@@ -436,7 +497,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-medium"
                 >
                   <option value="">— Không áp dụng chính sách —</option>
-                  {policies.map((p) => (
+                  {policiesList.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
                     </option>
@@ -486,7 +547,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
                 onChange={(e) => setSelectedPlanId(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-medium"
               >
-                {paymentPlans.map((plan) => (
+                {plansList.map((plan) => (
                   <option key={plan.id} value={plan.id}>
                     {plan.name}
                   </option>
@@ -547,7 +608,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
                     onChange={(e) => handleSelectLoanProgram(e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white"
                   >
-                    {loanPrograms.map((lp) => (
+                    {loansList.map((lp) => (
                       <option key={lp.id} value={lp.id}>
                         {lp.name} ({lp.annualInterestRate}%)
                       </option>
@@ -678,21 +739,46 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
             {/* Action Buttons */}
             <div className="pt-2 space-y-2">
               <button
-                onClick={handleSaveQuote}
-                disabled={isPending || !selectedUnit}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                onClick={() => setIsPreviewModalOpen(true)}
+                disabled={!selectedUnit}
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold text-sm shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                {isPending ? 'Đang lưu Snapshot...' : '💾 Lưu Báo Giá (Tạo Snapshot)'}
+                👁️ Xem & In Phiếu Báo Giá (Bản Đầy Đủ)
               </button>
 
-              <button
-                onClick={handleExportPDF}
-                disabled={isExporting || !selectedUnit}
-                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold text-xs transition flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                <Download size={14} />
-                {isExporting ? 'Đang tạo PDF...' : 'Xuất File PDF (In nhanh)'}
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={handleExportPDF}
+                  disabled={isExporting || !selectedUnit}
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold text-xs transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <Download size={14} />
+                  {isExporting ? 'Đang tạo...' : 'Tải File PDF'}
+                </button>
+
+                <button
+                  onClick={handleSaveQuote}
+                  disabled={isPending || !selectedUnit}
+                  className="w-full py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold text-xs transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  💾 Lưu Snapshot
+                </button>
+              </div>
+
+              {createdQuoteId && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs space-y-1">
+                  <div className="font-bold text-emerald-800 flex items-center gap-1">
+                    ✓ Đã lưu snapshot báo giá thành công!
+                  </div>
+                  <a
+                    href={`/quote/${createdQuoteId}`}
+                    target="_blank"
+                    className="text-blue-600 hover:underline flex items-center gap-1 font-semibold"
+                  >
+                    Xem phiếu báo giá snapshot trực tuyến →
+                  </a>
+                </div>
+              )}
             </div>
           </div>
 
@@ -721,45 +807,119 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
         </div>
       </div>
 
-      {/* Offscreen printable template container for html2pdf (not hidden so html2canvas computes full layout) */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'fixed',
-          left: '-99999px',
-          top: 0,
-          width: '800px',
-          zIndex: -9999,
-          pointerEvents: 'none',
-        }}
-      >
-        <QuotePreview
-          ref={quoteRef}
-          unit={selectedUnit || units[0]}
-          policy={selectedPolicy}
-          paymentPlan={selectedPlan}
-          schedules={paymentScheduleResult?.installments || []}
-          basePrice={priceResult.basePrice}
-          finalPrice={priceResult.finalPrice}
-          totalDiscount={priceResult.totalDiscount}
-          discountBreakdown={priceResult.discountBreakdown}
-          discountMode={priceResult.discountCalculationMode}
-          loanAmount={loanAmount}
-          equityAmount={equityAmount}
-          interestRate={interestRate}
-          loanTerm={loanTermMonths}
-          monthlyPayment={loanResult?.monthlyPayment}
-          bankName={selectedLoanProgram?.bankName}
-          repaymentMethod={repaymentMethod}
-          supportRate={selectedLoanProgram?.supportRate}
-          supportPeriodMonths={selectedLoanProgram?.supportPeriodMonths}
-          customerName={customerName}
-          customerPhone={customerPhone}
-          customerEmail={customerEmail}
-          salesName={salesName}
-          salesPhone={salesPhone}
-        />
-      </div>
+      {/* ── QUOTATION PREVIEW & PRINT MODAL ── */}
+      {isPreviewModalOpen && selectedUnit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-sm print:p-0 print:bg-white animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-4xl w-full my-6 shadow-2xl overflow-hidden print:m-0 print:shadow-none print:w-full print:max-w-none">
+            {/* Modal Toolbar (hidden when printing) */}
+            <div className="flex flex-wrap items-center justify-between px-6 py-3.5 bg-slate-900 text-white gap-3 print:hidden">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-blue-400">Phiếu Báo Giá:</span>
+                <span className="font-mono font-bold text-sm bg-slate-800 px-2 py-0.5 rounded text-amber-300">
+                  {selectedUnit.unitCode}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handlePrint}
+                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-1.5"
+                >
+                  🖨️ In Phiếu / Lưu PDF (Vector Chuẩn)
+                </button>
+                <button
+                  onClick={handleExportPDF}
+                  disabled={isExporting}
+                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-1.5"
+                >
+                  <Download size={13} />
+                  {isExporting ? 'Đang tải...' : 'Tải File PDF (.pdf)'}
+                </button>
+                <button
+                  onClick={() => setIsPreviewModalOpen(false)}
+                  className="px-3 py-1.5 text-slate-400 hover:text-white text-xs font-semibold rounded-lg transition"
+                >
+                  ✕ Đóng
+                </button>
+              </div>
+            </div>
+
+            {/* Document Body */}
+            <div className="p-4 md:p-8 overflow-y-auto max-h-[80vh] print:max-h-none print:overflow-visible flex justify-center bg-slate-100 print:bg-white print:p-0">
+              <div className="shadow-lg print:shadow-none bg-white">
+                <QuotePreview
+                  ref={quoteRef}
+                  unit={selectedUnit}
+                  policy={selectedPolicy}
+                  paymentPlan={selectedPlan}
+                  schedules={paymentScheduleResult?.installments || []}
+                  basePrice={priceResult.basePrice}
+                  finalPrice={priceResult.finalPrice}
+                  totalDiscount={priceResult.totalDiscount}
+                  discountBreakdown={priceResult.discountBreakdown}
+                  discountMode={priceResult.discountCalculationMode}
+                  loanAmount={loanAmount}
+                  equityAmount={equityAmount}
+                  interestRate={interestRate}
+                  loanTerm={loanTermMonths}
+                  monthlyPayment={loanResult?.monthlyPayment}
+                  bankName={selectedLoanProgram?.bankName}
+                  repaymentMethod={repaymentMethod}
+                  supportRate={selectedLoanProgram?.supportRate}
+                  supportPeriodMonths={selectedLoanProgram?.supportPeriodMonths}
+                  customerName={customerName}
+                  customerPhone={customerPhone}
+                  customerEmail={customerEmail}
+                  salesName={salesName}
+                  salesPhone={salesPhone}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Offscreen fallback template for direct export when modal is closed */}
+      {!isPreviewModalOpen && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            left: 0,
+            top: 0,
+            width: '800px',
+            zIndex: -9999,
+            opacity: 0.001,
+            pointerEvents: 'none',
+          }}
+        >
+          <QuotePreview
+            ref={quoteRef}
+            unit={selectedUnit || unitsList[0]}
+            policy={selectedPolicy}
+            paymentPlan={selectedPlan}
+            schedules={paymentScheduleResult?.installments || []}
+            basePrice={priceResult.basePrice}
+            finalPrice={priceResult.finalPrice}
+            totalDiscount={priceResult.totalDiscount}
+            discountBreakdown={priceResult.discountBreakdown}
+            discountMode={priceResult.discountCalculationMode}
+            loanAmount={loanAmount}
+            equityAmount={equityAmount}
+            interestRate={interestRate}
+            loanTerm={loanTermMonths}
+            monthlyPayment={loanResult?.monthlyPayment}
+            bankName={selectedLoanProgram?.bankName}
+            repaymentMethod={repaymentMethod}
+            supportRate={selectedLoanProgram?.supportRate}
+            supportPeriodMonths={selectedLoanProgram?.supportPeriodMonths}
+            customerName={customerName}
+            customerPhone={customerPhone}
+            customerEmail={customerEmail}
+            salesName={salesName}
+            salesPhone={salesPhone}
+          />
+        </div>
+      )}
     </div>
   )
 }

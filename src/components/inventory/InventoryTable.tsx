@@ -1,17 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { formatVND, formatArea } from '@/lib/calculations'
 import { useRouter } from 'next/navigation'
+import { getStoredUnits } from '@/lib/clientStore'
 
 export function InventoryTable({ initialUnits }: { initialUnits: any[] }) {
+  const [units, setUnits] = useState<any[]>(initialUnits)
   const [search, setSearch] = useState('')
   const router = useRouter()
 
-  const filtered = initialUnits.filter((u) => {
+  useEffect(() => {
+    setUnits(getStoredUnits(initialUnits))
+    const handler = (e: any) => {
+      if (e.detail) setUnits(e.detail)
+    }
+    window.addEventListener('sun_units_updated', handler)
+    return () => window.removeEventListener('sun_units_updated', handler)
+  }, [initialUnits])
+
+  const filtered = units.filter((u) => {
     const bCode = u.buildingCode || u.building || ''
     return (
       u.unitCode.toLowerCase().includes(search.toLowerCase()) ||
@@ -54,7 +65,7 @@ export function InventoryTable({ initialUnits }: { initialUnits: any[] }) {
           onChange={(e) => setSearch(e.target.value)}
         />
         <div className="text-sm text-muted-foreground">
-          Đang hiển thị {filtered.length} / {initialUnits.length} căn
+          Đang hiển thị {filtered.length} / {units.length} căn
         </div>
       </div>
 

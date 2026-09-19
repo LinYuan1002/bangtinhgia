@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useState, useTransition } from 'react'
+import React, { useState, useTransition, useEffect } from 'react'
 import { savePaymentPlan, savePaymentScheduleItems, deletePaymentPlan } from '@/app/admin/actions'
+import { getStoredPaymentPlans, saveStoredPaymentPlans } from '@/lib/clientStore'
 
 interface ScheduleItem {
   id?: string
@@ -29,6 +30,16 @@ export default function PaymentPlansClient({ initialPlans }: Props) {
   const [plans, setPlans] = useState<PaymentPlanItem[]>(initialPlans)
   const [isPending, startTransition] = useTransition()
   const [isModalOpen, setIsModalOpen] = useState(false)
+
+  useEffect(() => {
+    const stored = getStoredPaymentPlans(initialPlans)
+    setPlans(stored)
+    const handler = (e: any) => {
+      if (e.detail) setPlans(e.detail)
+    }
+    window.addEventListener('sun_plans_updated', handler)
+    return () => window.removeEventListener('sun_plans_updated', handler)
+  }, [initialPlans])
 
   // Form states
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null)
@@ -118,33 +129,51 @@ export default function PaymentPlansClient({ initialPlans }: Props) {
       return
     }
 
+    const planPayload: PaymentPlanItem = {
+      id: editingPlanId || 'plan-' + Date.now(),
+      name: planName,
+      type: planType,
+      description: planDesc,
+      isActive: isScheduleValid ? planActive : false,
+      scheduleItems: steps.map((s, idx) => ({
+        stepNumber: idx + 1,
+        name: s.name,
+        percentage: Number(s.percentage) || 0,
+        dueDateNote: s.dueDateNote,
+        relativeDays: s.relativeDays,
+      })),
+    }
+
+    let updated: PaymentPlanItem[]
+    if (editingPlanId) {
+      updated = plans.map((p) => (p.id === editingPlanId ? planPayload : p))
+    } else {
+      updated = [planPayload, ...plans]
+    }
+    saveStoredPaymentPlans(updated)
+    setPlans(updated)
+    setIsModalOpen(false)
+
     startTransition(async () => {
-      // 1. Save Plan
-      const planRes = await savePaymentPlan({
-        id: editingPlanId,
-        name: planName,
-        type: planType,
-        description: planDesc,
-        isActive: isScheduleValid ? planActive : false,
-      })
-
-      if (planRes.error) {
-        alert('Lỗi: ' + planRes.error)
-        return
+      try {
+        await savePaymentPlan(planPayload)
+      } catch (err) {
+        console.warn('Background server plan save note:', err)
       }
-
-      // If existing or newly created, refresh
-      window.location.reload()
     })
   }
 
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`Xóa phương án thanh toán "${name}"?`)) return
-    setPlans((prev) => prev.filter((p) => p.id !== id))
+    const updated = plans.filter((p) => p.id !== id)
+    saveStoredPaymentPlans(updated)
+    setPlans(updated)
+
     startTransition(async () => {
-      const res = await deletePaymentPlan(id)
-      if (res.error) {
-        console.warn('Lỗi khi xóa từ server:', res.error)
+      try {
+        await deletePaymentPlan(id)
+      } catch (err) {
+        console.warn('Background server plan delete note:', err)
       }
     })
   }

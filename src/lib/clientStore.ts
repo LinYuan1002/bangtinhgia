@@ -1,0 +1,157 @@
+'use client'
+
+// ─────────────────────────────────────────────────────────────
+// CLIENT STORAGE ENGINE
+// Provides persistent localStorage-backed state across all pages
+// (Calculator, Inventory, Admin) so changes survive page refreshes
+// even on serverless deployments (Vercel) without external cloud DB.
+// ─────────────────────────────────────────────────────────────
+
+const STORAGE_KEYS = {
+  UNITS: 'sun_urban_units_v2',
+  POLICIES: 'sun_urban_policies_v2',
+  PAYMENT_PLANS: 'sun_urban_plans_v2',
+  LOAN_PROGRAMS: 'sun_urban_loans_v2',
+  IS_INITIALIZED: 'sun_urban_initialized_v2',
+}
+
+// ─── UNITS STORE ──────────────────────────────────────────────
+
+export function getStoredUnits(fallbackUnits: any[]): any[] {
+  if (typeof window === 'undefined') return fallbackUnits
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.UNITS)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return parsed
+      }
+    }
+    // First time: initialize with fallback units if not yet set
+    if (!localStorage.getItem(STORAGE_KEYS.IS_INITIALIZED)) {
+      localStorage.setItem(STORAGE_KEYS.UNITS, JSON.stringify(fallbackUnits))
+      localStorage.setItem(STORAGE_KEYS.IS_INITIALIZED, 'true')
+    }
+    return fallbackUnits
+  } catch {
+    return fallbackUnits
+  }
+}
+
+export function saveStoredUnits(units: any[]): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEYS.UNITS, JSON.stringify(units))
+    localStorage.setItem(STORAGE_KEYS.IS_INITIALIZED, 'true')
+    window.dispatchEvent(new CustomEvent('sun_units_updated', { detail: units }))
+  } catch (err) {
+    console.warn('[clientStore] Failed to save units to localStorage:', err)
+  }
+}
+
+export function addOrUpdateStoredUnit(unit: any, currentUnits: any[]): any[] {
+  const index = currentUnits.findIndex((u) => u.id === unit.id || (unit.unitCode && u.unitCode === unit.unitCode))
+  let updated: any[]
+  if (index >= 0) {
+    updated = currentUnits.map((u, i) => (i === index ? { ...u, ...unit } : u))
+  } else {
+    updated = [unit, ...currentUnits]
+  }
+  saveStoredUnits(updated)
+  return updated
+}
+
+export function deleteStoredUnit(id: string, currentUnits: any[]): any[] {
+  const updated = currentUnits.filter((u) => u.id !== id)
+  saveStoredUnits(updated)
+  return updated
+}
+
+export function resetStoredUnitsToDefault(fallbackUnits: any[]): any[] {
+  if (typeof window === 'undefined') return fallbackUnits
+  try {
+    localStorage.setItem(STORAGE_KEYS.UNITS, JSON.stringify(fallbackUnits))
+    window.dispatchEvent(new CustomEvent('sun_units_updated', { detail: fallbackUnits }))
+    return fallbackUnits
+  } catch {
+    return fallbackUnits
+  }
+}
+
+// ─── POLICIES STORE ───────────────────────────────────────────
+
+export function getStoredPolicies(fallbackPolicies: any[]): any[] {
+  if (typeof window === 'undefined') return fallbackPolicies
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.POLICIES)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed
+    }
+    return fallbackPolicies
+  } catch {
+    return fallbackPolicies
+  }
+}
+
+export function saveStoredPolicies(policies: any[]): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEYS.POLICIES, JSON.stringify(policies))
+    window.dispatchEvent(new CustomEvent('sun_policies_updated', { detail: policies }))
+  } catch (err) {
+    console.warn('[clientStore] Failed to save policies:', err)
+  }
+}
+
+// ─── PAYMENT PLANS STORE ──────────────────────────────────────
+
+export function getStoredPaymentPlans(fallbackPlans: any[]): any[] {
+  if (typeof window === 'undefined') return fallbackPlans
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.PAYMENT_PLANS)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed
+    }
+    return fallbackPlans
+  } catch {
+    return fallbackPlans
+  }
+}
+
+export function saveStoredPaymentPlans(plans: any[]): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEYS.PAYMENT_PLANS, JSON.stringify(plans))
+    window.dispatchEvent(new CustomEvent('sun_plans_updated', { detail: plans }))
+  } catch (err) {
+    console.warn('[clientStore] Failed to save payment plans:', err)
+  }
+}
+
+// ─── LOAN PROGRAMS STORE ──────────────────────────────────────
+
+export function getStoredLoanPrograms(fallbackPrograms: any[]): any[] {
+  if (typeof window === 'undefined') return fallbackPrograms
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.LOAN_PROGRAMS)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed
+    }
+    return fallbackPrograms
+  } catch {
+    return fallbackPrograms
+  }
+}
+
+export function saveStoredLoanPrograms(programs: any[]): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEYS.LOAN_PROGRAMS, JSON.stringify(programs))
+    window.dispatchEvent(new CustomEvent('sun_loans_updated', { detail: programs }))
+  } catch (err) {
+    console.warn('[clientStore] Failed to save loan programs:', err)
+  }
+}

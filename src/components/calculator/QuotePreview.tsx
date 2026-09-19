@@ -78,7 +78,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
       }}
     >
       {/* ── HEADER ── */}
-      <div className="flex justify-between items-start border-b-2 border-slate-900 pb-5 mb-5">
+      <div className="page-break-avoid flex justify-between items-start border-b-2 border-slate-900 pb-5 mb-5">
         <div>
           <div className="text-xs font-bold uppercase tracking-widest text-blue-700 mb-1">
             TẬP ĐOÀN SUN GROUP • SUN URBAN CITY
@@ -98,7 +98,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
       </div>
 
       {/* ── 1. CUSTOMER & SALES INFORMATION ── */}
-      <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 mb-5 text-xs">
+      <div className="page-break-avoid grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 mb-5 text-xs">
         <div className="space-y-1">
           <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px] block mb-1">
             Thông Tin Khách Hàng
@@ -131,7 +131,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
       </div>
 
       {/* ── 2. UNIT SPECIFICATIONS ── */}
-      <div className="mb-5">
+      <div className="page-break-avoid mb-5">
         <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-2 flex items-center gap-1.5">
           <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">1</span>
           Thông Tin Chi Tiết Bất Động Sản
@@ -171,7 +171,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
       </div>
 
       {/* ── 3. PRICING & DETAILED DISCOUNT BREAKDOWN ── */}
-      <div className="mb-5">
+      <div className="page-break-avoid mb-5">
         <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-2 flex items-center gap-1.5">
           <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">2</span>
           Bảng Dự Toán Giá Bán & Chiết Khấu
@@ -226,7 +226,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
 
       {/* ── 4. PAYMENT SCHEDULE ── */}
       {paymentPlan && schedules.length > 0 && (
-        <div className="mb-5">
+        <div className="page-break-avoid mb-5">
           <div className="flex justify-between items-center mb-2">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
               <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">3</span>
@@ -276,7 +276,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
 
       {/* ── 5. BANK LOAN FINANCIAL ESTIMATION ── */}
       {paymentPlan?.type === 'LOAN' && loanAmount && loanAmount > 0 && (
-        <div className="mb-5">
+        <div className="page-break-avoid mb-5">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-2 flex items-center gap-1.5">
             <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">4</span>
             Phương Án Vay Vốn Ngân Hàng Đối Tác
@@ -324,7 +324,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
       )}
 
       {/* ── 6. DISCLAIMER & NOTES ── */}
-      <div className="pt-2 border-t border-slate-200 text-[10px] text-slate-500 space-y-1 mb-6">
+      <div className="page-break-avoid pt-2 border-t border-slate-200 text-[10px] text-slate-500 space-y-1 mb-6">
         <p className="italic">
           * Phiếu báo giá được lập tự động từ Hệ Thống Tính Giá Bất Động Sản Sun Urban City và có giá trị tham khảo kế hoạch tài chính.
         </p>
@@ -334,7 +334,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
       </div>
 
       {/* ── 7. SIGNATURES ── */}
-      <div className="grid grid-cols-2 gap-8 text-center text-xs pt-2">
+      <div className="page-break-avoid grid grid-cols-2 gap-8 text-center text-xs pt-2">
         <div>
           <div className="font-bold uppercase text-slate-700 mb-14">
             Đại diện Chuyên viên Tư vấn

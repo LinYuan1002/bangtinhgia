@@ -93,3 +93,22 @@
     border-radius: 10px;
   }
 }
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  header, nav, aside, .no-print, .print\:hidden {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .page-break-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}

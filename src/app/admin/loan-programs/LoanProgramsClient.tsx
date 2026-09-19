@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useState, useTransition } from 'react'
+import React, { useState, useTransition, useEffect } from 'react'
 import { saveLoanProgram, deleteLoanProgram } from '@/app/admin/actions'
+import { getStoredLoanPrograms, saveStoredLoanPrograms } from '@/lib/clientStore'
 
 interface LoanProgramItem {
   id: string
@@ -30,6 +31,16 @@ export default function LoanProgramsClient({ initialPrograms }: Props) {
   const [isPending, startTransition] = useTransition()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProg, setEditingProg] = useState<Partial<LoanProgramItem> | null>(null)
+
+  useEffect(() => {
+    const stored = getStoredLoanPrograms(initialPrograms)
+    setPrograms(stored)
+    const handler = (e: any) => {
+      if (e.detail) setPrograms(e.detail)
+    }
+    window.addEventListener('sun_loans_updated', handler)
+    return () => window.removeEventListener('sun_loans_updated', handler)
+  }, [initialPrograms])
 
   const openCreateModal = () => {
     setEditingProg({
@@ -61,32 +72,40 @@ export default function LoanProgramsClient({ initialPrograms }: Props) {
       return
     }
 
+    const progPayload = {
+      ...editingProg,
+      id: editingProg.id || 'loan-' + Date.now(),
+    }
+    let updated: LoanProgramItem[]
+    if (editingProg.id) {
+      updated = programs.map((p) => (p.id === editingProg.id ? (progPayload as any) : p))
+    } else {
+      updated = [progPayload as any, ...programs]
+    }
+    saveStoredLoanPrograms(updated)
+    setPrograms(updated)
+    setIsModalOpen(false)
+
     startTransition(async () => {
-      const res = await saveLoanProgram(editingProg)
-      if (res.error) {
-        alert('Lỗi: ' + res.error)
-        return
+      try {
+        await saveLoanProgram(progPayload)
+      } catch (err) {
+        console.warn('Background server loan save note:', err)
       }
-      if (res.program) {
-        if (editingProg.id) {
-          setPrograms((prev) =>
-            prev.map((p) => (p.id === editingProg.id ? res.program : p))
-          )
-        } else {
-          setPrograms((prev) => [res.program, ...prev])
-        }
-      }
-      setIsModalOpen(false)
     })
   }
 
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`Xóa chương trình vay "${name}"?`)) return
-    setPrograms((prev) => prev.filter((p) => p.id !== id))
+    const updated = programs.filter((p) => p.id !== id)
+    saveStoredLoanPrograms(updated)
+    setPrograms(updated)
+
     startTransition(async () => {
-      const res = await deleteLoanProgram(id)
-      if (res.error) {
-        console.warn('Lỗi khi xóa từ server:', res.error)
+      try {
+        await deleteLoanProgram(id)
+      } catch (err) {
+        console.warn('Background server loan delete note:', err)
       }
     })
   }

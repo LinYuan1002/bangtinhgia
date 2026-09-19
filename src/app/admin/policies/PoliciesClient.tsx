@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useState, useTransition } from 'react'
+import React, { useState, useTransition, useEffect } from 'react'
 import { savePolicy, updatePolicyStatus, deletePolicy } from '@/app/admin/actions'
 import { formatVND } from '@/lib/calculations'
+import { getStoredPolicies, saveStoredPolicies } from '@/lib/clientStore'
 
 interface PolicyItem {
   id: string
@@ -38,6 +39,16 @@ export default function PoliciesClient({ initialPolicies }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPolicy, setEditingPolicy] = useState<Partial<PolicyItem> | null>(null)
 
+  useEffect(() => {
+    const stored = getStoredPolicies(initialPolicies)
+    setPolicies(stored)
+    const handler = (e: any) => {
+      if (e.detail) setPolicies(e.detail)
+    }
+    window.addEventListener('sun_policies_updated', handler)
+    return () => window.removeEventListener('sun_policies_updated', handler)
+  }, [initialPolicies])
+
   const openCreateModal = () => {
     setEditingPolicy({
       name: '',
@@ -67,47 +78,58 @@ export default function PoliciesClient({ initialPolicies }: Props) {
       return
     }
 
+    const policyPayload = {
+      ...editingPolicy,
+      id: editingPolicy.id || 'policy-' + Date.now(),
+    }
+    let updated: PolicyItem[]
+    if (editingPolicy.id) {
+      updated = policies.map((p) => (p.id === editingPolicy.id ? (policyPayload as any) : p))
+    } else {
+      updated = [policyPayload as any, ...policies]
+    }
+    saveStoredPolicies(updated)
+    setPolicies(updated)
+    setIsModalOpen(false)
+
     startTransition(async () => {
-      const res = await savePolicy(editingPolicy)
-      if (res.error) {
-        alert('Lỗi: ' + res.error)
-        return
+      try {
+        await savePolicy(policyPayload)
+      } catch (err) {
+        console.warn('Background server policy save note:', err)
       }
-      if (res.policy) {
-        if (editingPolicy.id) {
-          setPolicies((prev) =>
-            prev.map((p) => (p.id === editingPolicy.id ? res.policy : p))
-          )
-        } else {
-          setPolicies((prev) => [res.policy, ...prev])
-        }
-      }
-      setIsModalOpen(false)
     })
   }
 
   const handleStatusChange = async (id: string, newStatus: string) => {
-    setPolicies((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: newStatus } : p))
-    )
+    const updated = policies.map((p) => (p.id === id ? { ...p, status: newStatus } : p))
+    saveStoredPolicies(updated)
+    setPolicies(updated)
+
     startTransition(async () => {
-      const res = await updatePolicyStatus(id, newStatus)
-      if (res.error) {
-        alert('Lỗi: ' + res.error)
+      try {
+        await updatePolicyStatus(id, newStatus)
+      } catch (err) {
+        console.warn('Background server policy status note:', err)
       }
     })
   }
 
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`Xóa chính sách "${name}"?`)) return
-    setPolicies((prev) => prev.filter((p) => p.id !== id))
+    const updated = policies.filter((p) => p.id !== id)
+    saveStoredPolicies(updated)
+    setPolicies(updated)
+
     startTransition(async () => {
-      const res = await deletePolicy(id)
-      if (res.error) {
-        console.warn('Lỗi khi xóa từ server:', res.error)
+      try {
+        await deletePolicy(id)
+      } catch (err) {
+        console.warn('Background server policy delete note:', err)
       }
     })
   }
+
 
   return (
     <div className="p-6">
