@@ -20,6 +20,30 @@ export default function DatabaseSyncButton() {
     }
   }
 
+  const handleSeedP12 = async () => {
+    if (!confirm('Nạp toàn bộ 15 căn hộ Quỹ Độc Quyền Tòa P12 và CSBH T9/2026 vào CSDL Turso Cloud?')) return
+    setLoading(true)
+    setResult(null)
+    try {
+      const res = await fetch('/api/setup-db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'seed-p12' }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        alert('✓ Đã nạp thành công 15 căn hộ Quỹ Độc Quyền Tòa P12 và CSBH T9/2026 lên Database!')
+        window.location.reload()
+      } else {
+        alert('Lỗi: ' + (data.message || data.error))
+      }
+    } catch (err: any) {
+      alert('Lỗi: ' + err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-xl p-5 mb-8 shadow-md">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -33,7 +57,14 @@ export default function DatabaseSyncButton() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleSeedP12}
+            disabled={loading}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-lg text-xs font-bold shadow transition flex items-center gap-1.5 disabled:opacity-50"
+          >
+            📥 Nạp 15 Căn P12 Thật
+          </button>
           <button
             onClick={handleSync}
             disabled={loading}

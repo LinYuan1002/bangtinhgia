@@ -52,7 +52,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
   const [selectedPolicyIds, setSelectedPolicyIds] = useState<string[]>(
     policies[0]?.id ? [policies[0].id] : []
   )
-  const [discountCalculationMode, setDiscountCalculationMode] = useState<'STACKED' | 'SEQUENTIAL'>('STACKED')
+  const [discountCalculationMode, setDiscountCalculationMode] = useState<'STACKED' | 'SEQUENTIAL'>('SEQUENTIAL')
   const [selectedPlanId, setSelectedPlanId] = useState<string>(paymentPlans[0]?.id || '')
   const [selectedLoanProgramId, setSelectedLoanProgramId] = useState<string>(
     loanPrograms[0]?.id || ''
@@ -421,6 +421,35 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
         </div>
       )}
 
+      {/* ── OFFICIAL DEPOSIT ALERT BANNER ── */}
+      <div className="p-4 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-300 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
+        <div className="flex items-start gap-3">
+          <span className="p-2.5 bg-amber-100 text-amber-800 rounded-xl text-xl font-bold flex items-center justify-center">🏛️</span>
+          <div>
+            <div className="font-bold text-sm text-slate-900 flex flex-wrap items-center gap-2">
+              <span>Thông tin nhận cọc:</span>
+              <span className="text-blue-900 font-black font-mono text-base tracking-wide">19133023958016</span>
+              <span className="text-xs font-semibold px-2.5 py-0.5 bg-white border border-amber-300 rounded-full text-amber-900 shadow-xs">
+                Techcombank - CN Hà Thành
+              </span>
+            </div>
+            <div className="text-xs text-slate-600 mt-0.5">
+              Đơn vị thụ hưởng: <strong className="text-slate-800">Công ty cổ phần đầu tư và thương mại Vhomes</strong>
+            </div>
+          </div>
+        </div>
+        <div className="text-xs text-slate-700 bg-white/90 px-3.5 py-2 rounded-xl border border-amber-200">
+          <div className="font-bold text-slate-800 mb-0.5">Định mức nộp cọc:</div>
+          <div className="flex items-center gap-2 text-[11px]">
+            <span>Studio: <strong className="text-rose-600 font-bold">50tr</strong></span>
+            <span>•</span>
+            <span>1BR+1: <strong className="text-rose-600 font-bold">100tr</strong></span>
+            <span>•</span>
+            <span>2BR: <strong className="text-rose-600 font-bold">150tr</strong></span>
+          </div>
+        </div>
+      </div>
+
       {/* ── MAIN CONFIGURATION GRID ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* LEFT 2 COLS: Selection controls */}
@@ -482,8 +511,15 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
                     </strong>
                   </div>
                   <div className="flex justify-between">
-                    <span>Trạng thái:</span>
-                    <strong className="text-emerald-700">{selectedUnit.status}</strong>
+                    <span>Mức cọc quy định:</span>
+                    <strong className="text-rose-700 font-bold">
+                      {(() => {
+                        const t = (selectedUnit.unitTypeName || selectedUnit.unitType || '').toUpperCase()
+                        if (t.includes('STUDIO')) return '50.000.000 VNĐ'
+                        if (t.includes('2BR') || t.includes('2PN')) return '150.000.000 VNĐ'
+                        return '100.000.000 VNĐ'
+                      })()}
+                    </strong>
                   </div>
                 </div>
               )}

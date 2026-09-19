@@ -36,11 +36,14 @@ interface Props {
 }
 
 const STATUS_BADGES: Record<string, { label: string; className: string }> = {
-  AVAILABLE: { label: 'Còn hàng', className: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
-  HOLD: { label: 'Đang giữ', className: 'bg-amber-100 text-amber-800 border-amber-300' },
-  SOLD: { label: 'Đã bán', className: 'bg-rose-100 text-rose-800 border-rose-300' },
-  LOCKED: { label: 'Khóa', className: 'bg-slate-200 text-slate-700 border-slate-300' },
-  UNAVAILABLE: { label: 'Không bán', className: 'bg-zinc-100 text-zinc-500 border-zinc-200' },
+  AVAILABLE: { label: 'Độc quyền / Còn hàng', className: 'bg-emerald-500 text-white border-emerald-600 font-bold' },
+  EXCLUSIVE: { label: 'Độc quyền', className: 'bg-emerald-500 text-white border-emerald-600 font-bold' },
+  HOLD: { label: 'Đang lock', className: 'bg-amber-400 text-slate-950 border-amber-500 font-bold' },
+  LOCKED: { label: 'Đang lock', className: 'bg-amber-400 text-slate-950 border-amber-500 font-bold' },
+  CHECK_ADMIN: { label: 'Check Admin', className: 'bg-slate-500 text-white border-slate-600 font-bold' },
+  PENDING: { label: 'Check Admin', className: 'bg-slate-500 text-white border-slate-600 font-bold' },
+  SOLD: { label: 'Đã bán', className: 'bg-rose-600 text-white border-rose-700 font-bold' },
+  UNAVAILABLE: { label: 'Không bán', className: 'bg-zinc-200 text-zinc-700 border-zinc-300' },
 }
 
 export default function UnitsClient({ initialUnits }: Props) {
@@ -260,6 +263,26 @@ export default function UnitsClient({ initialUnits }: Props) {
     })
   }
 
+  const handleSeedP12 = async () => {
+    if (!confirm('Nạp toàn bộ 15 căn hộ Quỹ Độc Quyền Tòa P12 (Bảng giá CSBH T9/2026) vào hệ thống?')) return
+    try {
+      const res = await fetch('/api/setup-db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'seed-p12' }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        alert('✓ Đã nạp thành công 15 căn hộ Quỹ Độc Quyền Tòa P12 và CSBH T9/2026!')
+        window.location.reload()
+      } else {
+        alert('Lỗi nạp căn: ' + (data.message || data.error))
+      }
+    } catch (e: any) {
+      alert('Lỗi kết nối: ' + e.message)
+    }
+  }
+
   const handleExecuteBulkStatus = () => {
     if (selectedIds.length === 0) return
     if (!confirm(`Xác nhận đổi trạng thái của ${selectedIds.length} căn đã chọn thành "${STATUS_BADGES[bulkStatus]?.label || bulkStatus}"?`)) {
@@ -342,6 +365,12 @@ export default function UnitsClient({ initialUnits }: Props) {
             className="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-100 transition"
           >
             ↺ Khôi phục gốc
+          </button>
+          <button
+            onClick={handleSeedP12}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition shadow-sm"
+          >
+            📥 Nạp Quỹ Độc Quyền P12 (15 Căn Thật)
           </button>
           <a
             href="/admin/import"

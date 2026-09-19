@@ -33,22 +33,31 @@ export function InventoryTable({ initialUnits }: { initialUnits: any[] }) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'AVAILABLE':
+      case 'EXCLUSIVE':
         return (
-          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-            AVAILABLE
-          </Badge>
+          <span className="inline-block px-2.5 py-1 text-[11px] font-black rounded-md bg-emerald-500 text-white uppercase tracking-wider">
+            ĐỘC QUYỀN
+          </span>
         )
       case 'HOLD':
+      case 'LOCKED':
         return (
-          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-            HOLD
-          </Badge>
+          <span className="inline-block px-2.5 py-1 text-[11px] font-black rounded-md bg-amber-400 text-slate-950 uppercase tracking-wider">
+            ĐANG LOCK
+          </span>
+        )
+      case 'CHECK_ADMIN':
+      case 'PENDING':
+        return (
+          <span className="inline-block px-2.5 py-1 text-[11px] font-black rounded-md bg-slate-500 text-white uppercase tracking-wider">
+            CHECK ADMIN
+          </span>
         )
       case 'SOLD':
         return (
-          <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">
-            SOLD
-          </Badge>
+          <span className="inline-block px-2.5 py-1 text-[11px] font-black rounded-md bg-rose-600 text-white uppercase tracking-wider">
+            ĐÃ BÁN
+          </span>
         )
       default:
         return <Badge variant="secondary">{status}</Badge>
@@ -57,6 +66,17 @@ export function InventoryTable({ initialUnits }: { initialUnits: any[] }) {
 
   return (
     <div className="space-y-4">
+      {/* Legend Bar matching sales spreadsheet */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200 text-xs">
+        <div className="font-bold text-slate-700">Chú thích trạng thái:</div>
+        <div className="flex flex-wrap items-center gap-2 font-black text-[11px]">
+          <span className="px-2.5 py-0.5 rounded bg-emerald-500 text-white">ĐỘC QUYỀN</span>
+          <span className="px-2.5 py-0.5 rounded bg-amber-400 text-slate-950">ĐANG LOCK</span>
+          <span className="px-2.5 py-0.5 rounded bg-slate-500 text-white">CHECK ADMIN</span>
+          <span className="px-2.5 py-0.5 rounded bg-rose-600 text-white">ĐÃ BÁN</span>
+        </div>
+      </div>
+
       <div className="flex justify-between items-center">
         <Input
           placeholder="Tìm kiếm mã căn, tòa..."

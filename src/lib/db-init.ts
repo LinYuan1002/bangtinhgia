@@ -345,54 +345,87 @@ export async function seedInitialDataIfEmpty(client?: Client) {
       args: ['proj-suc', 'Sun Urban City', 'SUC', 'Khu đô thị nghỉ dưỡng ngoại ô Sun Urban City Hà Nam'],
     })
 
-    // Seed Building S1 & S2
+    // Seed Building P12 (Quỹ độc quyền) and S1
+    await db.execute({
+      sql: `INSERT OR IGNORE INTO "Building" (id, projectId, name, code, totalFloors) VALUES (?, ?, ?, ?, ?)`,
+      args: ['bld-p12', 'proj-suc', 'Tòa P12 (Quỹ Độc Quyền)', 'P12', 29],
+    })
     await db.execute({
       sql: `INSERT OR IGNORE INTO "Building" (id, projectId, name, code, totalFloors) VALUES (?, ?, ?, ?, ?)`,
       args: ['bld-s1', 'proj-suc', 'Tòa S1', 'S1', 25],
     })
-    await db.execute({
-      sql: `INSERT OR IGNORE INTO "Building" (id, projectId, name, code, totalFloors) VALUES (?, ?, ?, ?, ?)`,
-      args: ['bld-s2', 'proj-suc', 'Tòa S2', 'S2', 25],
-    })
 
-    // Seed Policies
-    await db.execute({
-      sql: `INSERT OR IGNORE INTO "Policy" (id, name, description, discountPercent, fixedDiscount, earlyPaymentDiscountPct, giftValue, discountMode, status, priority)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        'policy-eb',
-        'Chính sách Mở Bán Đợt 1 - Early Bird',
-        'Chiết khấu 5% trực tiếp vào giá bán niêm yết + quà tặng nội thất 20.000.000 VNĐ',
-        5,
-        0,
-        0,
-        20000000,
-        'STACKED',
-        'ACTIVE',
-        1,
-      ],
-    })
-    await db.execute({
-      sql: `INSERT OR IGNORE INTO "Policy" (id, name, description, discountPercent, fixedDiscount, earlyPaymentDiscountPct, giftValue, discountMode, status, priority)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        'policy-tts',
-        'Chính sách Thanh Toán Sớm 95%',
-        'Chiết khấu 8% theo phương án TTS + 3% thanh toán sớm trong 15 ngày',
-        8,
-        0,
-        3,
-        0,
-        'STACKED',
-        'ACTIVE',
-        2,
-      ],
-    })
+    // Seed CSBH T9/2026 Policies
+    const realPolicies = [
+      ['policy-eb-1', 'Early Bird (EB) - Chiết khấu 1%', 'Chiết khấu 1% trực tiếp vào giá bán niêm yết', 1, 0, 0, 0, 'SEQUENTIAL', 'ACTIVE', 1],
+      ['policy-khong-vay-5', 'Không vay ngân hàng - Chiết khấu 5%', 'Chiết khấu 5% vào giá bán cho khách hàng thanh toán bằng vốn tự có', 5, 0, 0, 0, 'SEQUENTIAL', 'ACTIVE', 2],
+      ['policy-blnh-1', 'Không nhận chứng thư BLNH - Chiết khấu 1%', 'Chiết khấu 1% tạm tính cho khách hàng không nhận bảo lãnh ngân hàng', 1, 0, 0, 0, 'SEQUENTIAL', 'ACTIVE', 3],
+      ['policy-tts-95', 'Thanh toán sớm 95% (Đến 25/09/2026) - CK 9.5%', 'Chiết khấu 9.5% khi hoàn thành thanh toán sớm 95% muộn nhất 25/09/2026', 9.5, 0, 9.5, 0, 'SEQUENTIAL', 'ACTIVE', 4],
+      ['policy-tts-70', 'Thanh toán sớm 70% (Đến 25/09/2026) - CK 4.5%', 'Chiết khấu 4.5% khi hoàn thành thanh toán sớm 70% muộn nhất 25/09/2026', 4.5, 0, 4.5, 0, 'SEQUENTIAL', 'ACTIVE', 5],
+      ['policy-tts-50', 'Thanh toán sớm 50% (Đến 25/09/2026) - CK 1.5%', 'Chiết khấu 1.5% khi hoàn thành thanh toán sớm 50% muộn nhất 25/09/2026', 1.5, 0, 1.5, 0, 'SEQUENTIAL', 'ACTIVE', 6],
+    ]
+    for (const p of realPolicies) {
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO "Policy" (id, name, description, discountPercent, fixedDiscount, earlyPaymentDiscountPct, giftValue, discountMode, status, priority)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: p,
+      })
+    }
 
     // Seed Payment Plans
     await db.execute({
-      sql: `INSERT OR IGNORE INTO "PaymentPlan" (id, name, type, description, isActive) VALUES (?, ?, ?, ?, ?)`,
-      args: ['plan-std', 'Tiến độ thanh toán chuẩn (6 đợt)', 'STANDARD', 'Thanh toán giãn theo tiến độ thi công', 1],
+      sql: `INSERT OR REPLACE INTO "PaymentPlan" (id, name, type, description, isActive) VALUES (?, ?, ?, ?, ?)`,
+      args: ['plan-tts-95', 'Thanh toán sớm 95% (Hạn 25/09/2026)', 'FAST', 'Thanh toán 95% muộn nhất ngày 25/09/2026 hưởng chiết khấu 9.5%', 1],
+    })
+    const tts95Schedules = [
+      ['plan-tts-95', 1, 'Đặt cọc (Studio 50tr, 1BR+ 100tr, 2BR 150tr)', 5, 'Ngay khi ký TTĐC'],
+      ['plan-tts-95', 2, 'Đợt 1 (Ký HĐMB & TT 95%)', 90, 'Muộn nhất ngày 25/09/2026'],
+      ['plan-tts-95', 3, 'Đợt 2 (Bàn giao GCN / Sổ)', 5, 'Khi nhận sổ hồng'],
+    ]
+    for (const s of tts95Schedules) {
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO "PaymentScheduleItem" (id, paymentPlanId, stepNumber, name, percentage, dueDateNote) VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [`item-tts95-${s[1]}`, s[0], s[1], s[2], s[3], s[4]],
+      })
+    }
+
+    await db.execute({
+      sql: `INSERT OR REPLACE INTO "PaymentPlan" (id, name, type, description, isActive) VALUES (?, ?, ?, ?, ?)`,
+      args: ['plan-tts-70', 'Thanh toán sớm 70% (Hạn 25/09/2026)', 'FAST', 'Thanh toán 70% muộn nhất ngày 25/09/2026 hưởng chiết khấu 4.5%', 1],
+    })
+    const tts70Schedules = [
+      ['plan-tts-70', 1, 'Đặt cọc', 5, 'Ngay khi ký TTĐC'],
+      ['plan-tts-70', 2, 'Đợt 1 (Ký HĐMB & TT 70%)', 65, 'Muộn nhất ngày 25/09/2026'],
+      ['plan-tts-70', 3, 'Đợt 2 (Bàn giao căn hộ)', 25, 'Khi nhận bàn giao nhà'],
+      ['plan-tts-70', 4, 'Đợt 3 (Bàn giao GCN / Sổ)', 5, 'Khi nhận sổ hồng'],
+    ]
+    for (const s of tts70Schedules) {
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO "PaymentScheduleItem" (id, paymentPlanId, stepNumber, name, percentage, dueDateNote) VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [`item-tts70-${s[1]}`, s[0], s[1], s[2], s[3], s[4]],
+      })
+    }
+
+    await db.execute({
+      sql: `INSERT OR REPLACE INTO "PaymentPlan" (id, name, type, description, isActive) VALUES (?, ?, ?, ?, ?)`,
+      args: ['plan-tts-50', 'Thanh toán sớm 50% (Hạn 25/09/2026)', 'FAST', 'Thanh toán 50% muộn nhất ngày 25/09/2026 hưởng chiết khấu 1.5%', 1],
+    })
+    const tts50Schedules = [
+      ['plan-tts-50', 1, 'Đặt cọc', 5, 'Ngay khi ký TTĐC'],
+      ['plan-tts-50', 2, 'Đợt 1 (Ký HĐMB & TT 50%)', 45, 'Muộn nhất ngày 25/09/2026'],
+      ['plan-tts-50', 3, 'Đợt 2 (Bàn giao căn hộ)', 45, 'Khi nhận bàn giao nhà'],
+      ['plan-tts-50', 4, 'Đợt 3 (Bàn giao GCN / Sổ)', 5, 'Khi nhận sổ hồng'],
+    ]
+    for (const s of tts50Schedules) {
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO "PaymentScheduleItem" (id, paymentPlanId, stepNumber, name, percentage, dueDateNote) VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [`item-tts50-${s[1]}`, s[0], s[1], s[2], s[3], s[4]],
+      })
+    }
+
+    await db.execute({
+      sql: `INSERT OR REPLACE INTO "PaymentPlan" (id, name, type, description, isActive) VALUES (?, ?, ?, ?, ?)`,
+      args: ['plan-std', 'Tiến độ thanh toán chuẩn (Không vay)', 'STANDARD', 'Thanh toán giãn đều theo tiến độ thi công', 1],
     })
     const stdSchedules = [
       ['plan-std', 1, 'Đặt cọc', 10, 'Ngay khi ký TTĐC'],
@@ -404,15 +437,15 @@ export async function seedInitialDataIfEmpty(client?: Client) {
     ]
     for (const s of stdSchedules) {
       await db.execute({
-        sql: `INSERT OR IGNORE INTO "PaymentScheduleItem" (id, paymentPlanId, stepNumber, name, percentage, dueDateNote) VALUES (?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT OR REPLACE INTO "PaymentScheduleItem" (id, paymentPlanId, stepNumber, name, percentage, dueDateNote) VALUES (?, ?, ?, ?, ?, ?)`,
         args: [`item-std-${s[1]}`, s[0], s[1], s[2], s[3], s[4]],
       })
     }
 
     // Seed Loan Plan
     await db.execute({
-      sql: `INSERT OR IGNORE INTO "PaymentPlan" (id, name, type, description, isActive) VALUES (?, ?, ?, ?, ?)`,
-      args: ['plan-loan', 'Phương án Vay Ngân Hàng 70%', 'LOAN', 'Hỗ trợ lãi suất 0% và ân hạn nợ gốc', 1],
+      sql: `INSERT OR REPLACE INTO "PaymentPlan" (id, name, type, description, isActive) VALUES (?, ?, ?, ?, ?)`,
+      args: ['plan-loan', 'Phương án Vay Ngân Hàng 70% (HTLS 0%)', 'LOAN', 'Hỗ trợ lãi suất 0% và ân hạn nợ gốc', 1],
     })
     const loanSchedules = [
       ['plan-loan', 1, 'Đặt cọc (Vốn tự có)', 10, 'Ngay khi ký TTĐC'],
@@ -421,14 +454,14 @@ export async function seedInitialDataIfEmpty(client?: Client) {
     ]
     for (const s of loanSchedules) {
       await db.execute({
-        sql: `INSERT OR IGNORE INTO "PaymentScheduleItem" (id, paymentPlanId, stepNumber, name, percentage, dueDateNote) VALUES (?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT OR REPLACE INTO "PaymentScheduleItem" (id, paymentPlanId, stepNumber, name, percentage, dueDateNote) VALUES (?, ?, ?, ?, ?, ?)`,
         args: [`item-loan-${s[1]}`, s[0], s[1], s[2], s[3], s[4]],
       })
     }
 
     // Seed Loan Programs
     await db.execute({
-      sql: `INSERT OR IGNORE INTO "LoanProgram" (id, name, bankName, annualInterestRate, interestRateType, maxLoanPercent, maxLoanTermMonths, repaymentMethod, interestSupport, supportRate, supportPeriodMonths, status)
+      sql: `INSERT OR REPLACE INTO "LoanProgram" (id, name, bankName, annualInterestRate, interestRateType, maxLoanPercent, maxLoanTermMonths, repaymentMethod, interestSupport, supportRate, supportPeriodMonths, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         'lp-vcb',
@@ -446,24 +479,52 @@ export async function seedInitialDataIfEmpty(client?: Client) {
       ],
     })
 
-    // Seed Sample Units
-    const sampleUnits = [
-      ['unit-s1-0612', 'S1', 6, 'S1-0612', '1PN+', 45.1, 1, 1, 'Nam', 'Công viên trung tâm', 2500000000, 55432372, 'AVAILABLE'],
-      ['unit-s1-0615', 'S1', 6, 'S1-0615', '2PN', 60.5, 2, 2, 'Đông Nam', 'Hồ bơi sinh thái', 3500000000, 57851239, 'AVAILABLE'],
-      ['unit-s1-1205', 'S1', 12, 'S1-1205', 'Studio', 32.0, 1, 1, 'Bắc', 'Quảng trường lễ hội', 1800000000, 56250000, 'AVAILABLE'],
-      ['unit-s2-0810', 'S2', 8, 'S2-0810', '1PN', 42.0, 1, 1, 'Đông', 'Nội khu resort', 2200000000, 52380952, 'HOLD'],
-      ['unit-s2-2001', 'S2', 20, 'S2-2001', '3PN', 85.0, 3, 2, 'Tây Bắc', 'Sông Châu Giang', 4800000000, 56470588, 'AVAILABLE'],
+    // Seed 15 Real Units of Quỹ Độc Quyền P12
+    const p12Units = [
+      ['unit-p12-03a02', 'P12', 3, 'P1203A02', 'Studio', 30.5, 1, 1, 'Tây', 'đường 36m', 1577154839, Math.round(1577154839 / 30.5), 'AVAILABLE'],
+      ['unit-p12-03a03', 'P12', 3, 'P1203A03', '1BR+', 46.8, 1, 1, 'Tây', 'đường 36m', 2267461407, Math.round(2267461407 / 46.8), 'AVAILABLE'],
+      ['unit-p12-03a09', 'P12', 3, 'P1203A09', '2BR', 54.5, 2, 2, 'Đông - Bắc', 'Góc Sun World', 3152171397, Math.round(3152171397 / 54.5), 'AVAILABLE'],
+      ['unit-p12-03a15', 'P12', 3, 'P1203A15', '1BR+', 46.7, 1, 1, 'Đông', 'View nội khu', 2136346657, Math.round(2136346657 / 46.7), 'AVAILABLE'],
+      ['unit-p12-0501', 'P12', 5, 'P120501', 'Studio', 30.5, 1, 1, 'Tây', 'đường 36m', 1592387825, Math.round(1592387825 / 30.5), 'AVAILABLE'],
+      ['unit-p12-0512', 'P12', 5, 'P120512', '1BR+', 46.6, 1, 1, 'Đông', 'View sun world', 2152294426, Math.round(2152294426 / 46.6), 'AVAILABLE'],
+      ['unit-p12-0518', 'P12', 5, 'P120518', '2BR', 54.6, 2, 2, 'Đông - Nam', 'Góc + Nội Khu', 2707630656, Math.round(2707630656 / 54.6), 'AVAILABLE'],
+      ['unit-p12-0524', 'P12', 5, 'P120524', '1BR+', 46.6, 1, 1, 'Tây', 'đường 36m', 2279541308, Math.round(2279541308 / 46.6), 'AVAILABLE'],
+      ['unit-p12-0605', 'P12', 6, 'P120605', '1BR+', 46.6, 1, 1, 'Tây', 'CV thể thao', 2301311211, Math.round(2301311211 / 46.6), 'AVAILABLE'],
+      ['unit-p12-0611', 'P12', 6, 'P120611', '1BR+', 46.6, 1, 1, 'Đông', 'View sun world', 2172816812, Math.round(2172816812 / 46.6), 'AVAILABLE'],
+      ['unit-p12-0621', 'P12', 6, 'P120621', 'Studio', 30.5, 1, 1, 'Tây', 'đường 36m', 1639641174, Math.round(1639641174 / 30.5), 'AVAILABLE'],
+      ['unit-p12-0622', 'P12', 6, 'P120622', '1BR+', 46.7, 1, 1, 'Tây', 'đường 36m', 2306249647, Math.round(2306249647 / 46.7), 'AVAILABLE'],
+      ['unit-p12-0907', 'P12', 9, 'P120907', 'Studio', 30.6, 1, 1, 'Tây', 'CV thể thao', 1719057358, Math.round(1719057358 / 30.6), 'AVAILABLE'],
+      ['unit-p12-0912a', 'P12', 9, 'P120912A', '1BR+', 46.8, 1, 1, 'Đông', 'View nội khu', 2096435649, Math.round(2096435649 / 46.8), 'AVAILABLE'],
+      ['unit-p12-0923', 'P12', 9, 'P120923', '1BR+', 46.9, 1, 1, 'Tây', 'đường 36m', 2338036574, Math.round(2338036574 / 46.9), 'AVAILABLE'],
     ]
-    for (const u of sampleUnits) {
+    for (const u of p12Units) {
       await db.execute({
-        sql: `INSERT OR IGNORE INTO "Unit" (id, buildingCode, floorNumber, unitCode, unitTypeName, area, bedrooms, bathrooms, direction, view, basePrice, pricePerM2, status)
+        sql: `INSERT OR REPLACE INTO "Unit" (id, buildingCode, floorNumber, unitCode, unitTypeName, area, bedrooms, bathrooms, direction, view, basePrice, pricePerM2, status)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: u,
       })
     }
 
-    console.log('[db-init] Seeded 5 initial units, policies, and payment plans successfully.')
+    console.log('[db-init] Seeded 15 P12 exclusive units and CSBH T9/2026 policies successfully.')
   } catch (err) {
     console.error('[db-init] Seed error:', err)
   }
+}
+
+/**
+ * Explicitly forces seeding of the 15 P12 units and CSBH T9/2026 into the database.
+ */
+export async function seedP12ExclusiveInventory(client?: Client) {
+  const db = client || getTursoClient()
+  if (!db) return { success: false, message: 'Chưa có kết nối Turso' }
+
+  // Clean old sample units
+  const sampleCodes = ['S1-0612', 'S1-0615', 'S1-1205', 'S2-0810', 'S2-2001']
+  for (const code of sampleCodes) {
+    await db.execute({ sql: `DELETE FROM "Unit" WHERE "unitCode" = ?`, args: [code] }).catch(() => {})
+  }
+
+  // Execute seeding
+  await seedInitialDataIfEmpty(db)
+  return { success: true, message: 'Đã nạp thành công 15 căn hộ Quỹ Độc Quyền Tòa P12 và CSBH T9/2026 lên Database!' }
 }

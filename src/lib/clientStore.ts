@@ -7,12 +7,12 @@
 // ─────────────────────────────────────────────────────────────
 
 const STORAGE_KEYS = {
-  UNITS: 'sun_urban_units_v3',
-  POLICIES: 'sun_urban_policies_v3',
-  PAYMENT_PLANS: 'sun_urban_plans_v3',
-  LOAN_PROGRAMS: 'sun_urban_loans_v3',
-  IS_INITIALIZED: 'sun_urban_initialized_v3',
-  CLEARED_SAMPLES: 'sun_urban_cleared_samples_v3',
+  UNITS: 'sun_urban_units_v4',
+  POLICIES: 'sun_urban_policies_v4',
+  PAYMENT_PLANS: 'sun_urban_plans_v4',
+  LOAN_PROGRAMS: 'sun_urban_loans_v4',
+  IS_INITIALIZED: 'sun_urban_initialized_v4',
+  CLEARED_SAMPLES: 'sun_urban_cleared_samples_v4',
 }
 
 // ─── UNITS STORE ──────────────────────────────────────────────

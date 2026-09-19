@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { ensureDatabaseSchema, seedInitialDataIfEmpty, getTursoClient } from '@/lib/db-init'
+import { ensureDatabaseSchema, seedInitialDataIfEmpty, seedP12ExclusiveInventory, getTursoClient } from '@/lib/db-init'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -55,6 +55,11 @@ export async function POST(req: Request) {
 
     const client = getTursoClient()
     const initResult = await ensureDatabaseSchema(client || undefined)
+
+    if (action === 'seed-p12') {
+      const res = await seedP12ExclusiveInventory(client || undefined)
+      return NextResponse.json(res)
+    }
 
     if (action === 'clear-samples') {
       // Delete all sample units

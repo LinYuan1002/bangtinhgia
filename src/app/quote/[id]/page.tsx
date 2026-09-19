@@ -316,6 +316,59 @@ export default async function QuoteViewPage({ params }: Props) {
             </div>
           )}
 
+          {/* 5. Official Deposit Info */}
+          {(() => {
+            const unitTypeNorm = (unitData?.unitTypeName || unitData?.unitType || '').toUpperCase()
+            let requiredDeposit = 100000000
+            if (unitTypeNorm.includes('STUDIO')) {
+              requiredDeposit = 50000000
+            } else if (unitTypeNorm.includes('2BR') || unitTypeNorm.includes('2PN')) {
+              requiredDeposit = 150000000
+            } else if (unitTypeNorm.includes('1BR') || unitTypeNorm.includes('1PN')) {
+              requiredDeposit = 100000000
+            }
+
+            return (
+              <div className="py-6 border-b border-slate-200">
+                <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-5 text-xs space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-amber-200">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
+                      <span>🏛️</span> Thông Tin Tài Khoản Nhận Cọc Chính Thức
+                    </h2>
+                    <div className="px-3 py-1 rounded-full bg-amber-200/80 text-amber-900 font-bold">
+                      Số tiền cọc quy định: <span className="text-rose-700 font-black">{formatVND(requiredDeposit)}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-slate-800">
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase font-bold block">Tên đơn vị thụ hưởng:</span>
+                      <strong className="text-slate-900 text-sm font-bold block">Công ty cổ phần đầu tư và thương mại Vhomes</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase font-bold block">Số tài khoản Techcombank:</span>
+                      <strong className="text-blue-700 font-mono text-base font-black tracking-wider block">19133023958016</strong>
+                      <span className="text-slate-600 text-[11px]">Techcombank - Chi nhánh Hà Thành</span>
+                    </div>
+                    <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200 text-[11px] space-y-0.5">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold block">Quy định mức tiền cọc:</span>
+                      <div>• Studio: <strong>50 triệu đồng</strong></div>
+                      <div>• 1BR+1: <strong>100 triệu đồng</strong></div>
+                      <div>• 2BR: <strong>150 triệu đồng</strong></div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-amber-200 text-[11px] text-slate-700">
+                    Cú pháp chuyển cọc chuẩn:{' '}
+                    <strong className="font-mono text-blue-900 bg-amber-100/80 px-2 py-0.5 rounded font-bold">
+                      {quote.customerName || '<Tên khách hàng>'} dat coc {unitData?.unitCode || '<Mã căn>'} du an Sun Urban City
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Immutability & Disclaimer notice */}
           <div className="pt-8 text-xs text-slate-500 space-y-2">
             <p className="italic">

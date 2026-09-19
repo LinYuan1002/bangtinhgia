@@ -407,28 +407,55 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
       )}
 
       {/* ── 7. OFFICIAL DEPOSIT BANK ACCOUNT ── */}
-      <div className="page-break-avoid mb-5 bg-amber-50/80 border border-amber-200 rounded-xl p-3.5 text-xs">
-        <h3 className="font-bold text-amber-900 uppercase tracking-wide text-[11px] mb-1.5 flex items-center gap-1.5">
-          <span>🏛️</span> Thông Tin Chuyển Khoản Đặt Cọc Căn Hộ (Chủ Đầu Tư Sun Group)
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-800">
-          <div>
-            <span className="text-[10px] text-slate-500 block uppercase font-bold">Tên tài khoản thụ hưởng:</span>
-            <strong className="text-slate-900">CÔNG TY CỔ PHẦN MẶT TRỜI HÀ NAM</strong>
+      {(() => {
+        const unitTypeNorm = (unit?.unitTypeName || unit?.unitType || '').toUpperCase()
+        let requiredDeposit = 100000000
+        if (unitTypeNorm.includes('STUDIO')) {
+          requiredDeposit = 50000000
+        } else if (unitTypeNorm.includes('2BR') || unitTypeNorm.includes('2PN')) {
+          requiredDeposit = 150000000
+        } else if (unitTypeNorm.includes('1BR') || unitTypeNorm.includes('1PN')) {
+          requiredDeposit = 100000000
+        }
+
+        return (
+          <div className="page-break-avoid mb-5 bg-amber-50/90 border border-amber-300 rounded-xl p-4 text-xs shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-1.5 border-b border-amber-200">
+              <h3 className="font-black text-amber-950 uppercase tracking-wide text-xs flex items-center gap-1.5">
+                <span>🏛️</span> Thông Tin Nhận Cọc Chính Thức
+              </h3>
+              <div className="px-2.5 py-0.5 rounded-full bg-amber-200/80 text-amber-900 font-bold text-[11px]">
+                Số tiền cọc căn này: <span className="text-rose-700 font-black">{formatVND(requiredDeposit)}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-slate-800">
+              <div>
+                <span className="text-[10px] text-slate-500 block uppercase font-bold">Tên tài khoản thụ hưởng:</span>
+                <strong className="text-slate-900 font-bold block text-sm">Công ty cổ phần đầu tư và thương mại Vhomes</strong>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-500 block uppercase font-bold">Số tài khoản Techcombank:</span>
+                <strong className="text-blue-700 font-mono text-base font-black tracking-wider block">19133023958016</strong>
+                <span className="text-[11px] text-slate-600">Techcombank - Chi nhánh Hà Thành</span>
+              </div>
+              <div className="bg-white/80 p-2 rounded-lg border border-amber-200 text-[11px] space-y-0.5">
+                <span className="text-[10px] text-slate-500 block uppercase font-bold">Quy định mức tiền cọc:</span>
+                <div>• Studio: <strong>50 triệu đồng</strong></div>
+                <div>• 1BR+1: <strong>100 triệu đồng</strong></div>
+                <div>• 2BR: <strong>150 triệu đồng</strong></div>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-amber-200 text-[11px] text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <div>
+                Nội dung chuyển khoản chuẩn: <strong className="font-mono text-blue-900 bg-amber-100/80 px-2 py-0.5 rounded font-bold">{customerName || '<Tên khách hàng>'} dat coc {unit?.unitCode || '<Mã căn>'} du an Sun Urban City</strong>
+              </div>
+              <span className="text-[10px] text-slate-500 italic">* Chụp lại biên lai gửi chuyên viên để xác nhận lock căn.</span>
+            </div>
           </div>
-          <div>
-            <span className="text-[10px] text-slate-500 block uppercase font-bold">Số tài khoản:</span>
-            <strong className="text-blue-700 font-mono text-sm font-black">1120 0293 8888</strong>
-          </div>
-          <div>
-            <span className="text-[10px] text-slate-500 block uppercase font-bold">Ngân hàng:</span>
-            <strong className="text-slate-900">Vietcombank - Chi nhánh Hà Nam</strong>
-          </div>
-        </div>
-        <div className="mt-2 pt-1.5 border-t border-amber-200/60 text-[11px] text-slate-700">
-          Cú pháp chuyển tiền: <strong className="font-mono text-amber-900">{customerName || 'Ho va Ten'} {customerPhone || 'SDT'} Dat coc can {unit?.unitCode || 'MaCan'}</strong>
-        </div>
-      </div>
+        )
+      })()}
 
       {/* ── 8. DISCLAIMER & NOTES ── */}
       <div className="page-break-avoid pt-2 border-t border-slate-200 text-[10px] text-slate-500 space-y-1 mb-5">
