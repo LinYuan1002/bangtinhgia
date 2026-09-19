@@ -1,5 +1,8 @@
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 async function getStats() {
   try {
     const [totalUnits, byStatus, recentQuotes, recentImports] = await Promise.all([

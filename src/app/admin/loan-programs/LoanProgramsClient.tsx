@@ -67,20 +67,27 @@ export default function LoanProgramsClient({ initialPrograms }: Props) {
         alert('Lỗi: ' + res.error)
         return
       }
+      if (res.program) {
+        if (editingProg.id) {
+          setPrograms((prev) =>
+            prev.map((p) => (p.id === editingProg.id ? res.program : p))
+          )
+        } else {
+          setPrograms((prev) => [res.program, ...prev])
+        }
+      }
       setIsModalOpen(false)
-      window.location.reload()
     })
   }
 
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`Xóa chương trình vay "${name}"?`)) return
+    setPrograms((prev) => prev.filter((p) => p.id !== id))
     startTransition(async () => {
       const res = await deleteLoanProgram(id)
       if (res.error) {
-        alert('Lỗi khi xóa: ' + res.error)
-        return
+        console.warn('Lỗi khi xóa từ server:', res.error)
       }
-      setPrograms(programs.filter((p) => p.id !== id))
     })
   }
 

@@ -721,8 +721,18 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
         </div>
       </div>
 
-      {/* Hidden printable template container for html2pdf */}
-      <div className="hidden">
+      {/* Offscreen printable template container for html2pdf (not hidden so html2canvas computes full layout) */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          left: '-99999px',
+          top: 0,
+          width: '800px',
+          zIndex: -9999,
+          pointerEvents: 'none',
+        }}
+      >
         <QuotePreview
           ref={quoteRef}
           unit={selectedUnit || units[0]}
@@ -732,13 +742,22 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
           basePrice={priceResult.basePrice}
           finalPrice={priceResult.finalPrice}
           totalDiscount={priceResult.totalDiscount}
+          discountBreakdown={priceResult.discountBreakdown}
+          discountMode={priceResult.discountCalculationMode}
           loanAmount={loanAmount}
           equityAmount={equityAmount}
           interestRate={interestRate}
           loanTerm={loanTermMonths}
           monthlyPayment={loanResult?.monthlyPayment}
+          bankName={selectedLoanProgram?.bankName}
+          repaymentMethod={repaymentMethod}
+          supportRate={selectedLoanProgram?.supportRate}
+          supportPeriodMonths={selectedLoanProgram?.supportPeriodMonths}
           customerName={customerName}
+          customerPhone={customerPhone}
+          customerEmail={customerEmail}
           salesName={salesName}
+          salesPhone={salesPhone}
         />
       </div>
     </div>

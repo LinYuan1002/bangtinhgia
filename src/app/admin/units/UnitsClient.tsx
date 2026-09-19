@@ -167,13 +167,14 @@ export default function UnitsClient({ initialUnits }: Props) {
         alert('Lỗi: ' + res.error)
         return
       }
-      // Optimistic local update
-      if (editingUnit.id) {
-        setUnits((prev) =>
-          prev.map((u) => (u.id === editingUnit.id ? ({ ...u, ...editingUnit } as UnitItem) : u))
-        )
-      } else {
-        window.location.reload()
+      if (res.unit) {
+        if (editingUnit.id) {
+          setUnits((prev) =>
+            prev.map((u) => (u.id === editingUnit.id ? res.unit : u))
+          )
+        } else {
+          setUnits((prev) => [res.unit, ...prev])
+        }
       }
       setIsEditModalOpen(false)
     })
@@ -183,14 +184,15 @@ export default function UnitsClient({ initialUnits }: Props) {
     if (!confirm(`Bạn có chắc chắn muốn xóa căn hộ ${code}? Hành động này không thể hoàn tác.`)) {
       return
     }
+    // Optimistic removal from UI immediately
+    setUnits((prev) => prev.filter((u) => u.id !== id))
+    setSelectedIds((prev) => prev.filter((i) => i !== id))
+
     startTransition(async () => {
       const res = await deleteUnit(id)
       if (res.error) {
-        alert('Lỗi khi xóa: ' + res.error)
-        return
+        console.warn('Lỗi khi xóa từ server:', res.error)
       }
-      setUnits((prev) => prev.filter((u) => u.id !== id))
-      setSelectedIds((prev) => prev.filter((i) => i !== id))
     })
   }
 

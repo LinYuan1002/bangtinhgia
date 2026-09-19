@@ -236,11 +236,11 @@ model Quote {
 
   // FK references (chỉ để link, không dùng để tính lại)
   unitId        String
-  unit          Unit     @relation(fields: [unitId], references: [id])
+  unit          Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
   policyId      String?
-  policy        Policy?  @relation(fields: [policyId], references: [id])
+  policy        Policy?  @relation(fields: [policyId], references: [id], onDelete: SetNull)
   paymentPlanId String?
-  paymentPlan   PaymentPlan? @relation(fields: [paymentPlanId], references: [id])
+  paymentPlan   PaymentPlan? @relation(fields: [paymentPlanId], references: [id], onDelete: SetNull)
 
   // Full snapshots (JSON string — immutable)
   unitSnapshot        String   // JSON: thông tin căn tại thời điểm tạo

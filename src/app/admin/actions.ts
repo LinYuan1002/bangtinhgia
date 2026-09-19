@@ -11,8 +11,9 @@ export async function saveUnit(data: any) {
     const area = parseFloat(data.area) || 0
     const pricePerM2 = area > 0 ? basePrice / area : 0
 
-    if (data.id) {
-      // Check if price changed → create history
+    let unit: any = null
+
+    if (data.id && !String(data.id).startsWith('fb-')) {
       const existing = await prisma.unit.findUnique({ where: { id: data.id } })
       if (existing && existing.basePrice !== basePrice) {
         await prisma.priceHistory.create({
@@ -26,13 +27,13 @@ export async function saveUnit(data: any) {
         })
       }
 
-      await prisma.unit.update({
+      unit = await prisma.unit.update({
         where: { id: data.id },
         data: {
-          buildingCode: data.buildingCode || data.building,
-          floorNumber: parseInt(data.floorNumber || data.floor) || 0,
+          buildingCode: data.buildingCode || data.building || 'S1',
+          floorNumber: parseInt(data.floorNumber || data.floor) || 1,
           unitCode: data.unitCode,
-          unitTypeName: data.unitTypeName || data.unitType,
+          unitTypeName: data.unitTypeName || data.unitType || '1PN',
           area,
           direction: data.direction || '',
           view: data.view || '',
@@ -44,12 +45,12 @@ export async function saveUnit(data: any) {
         },
       })
     } else {
-      await prisma.unit.create({
+      unit = await prisma.unit.create({
         data: {
-          buildingCode: data.buildingCode || data.building,
-          floorNumber: parseInt(data.floorNumber || data.floor) || 0,
+          buildingCode: data.buildingCode || data.building || 'S1',
+          floorNumber: parseInt(data.floorNumber || data.floor) || 1,
           unitCode: data.unitCode,
-          unitTypeName: data.unitTypeName || data.unitType,
+          unitTypeName: data.unitTypeName || data.unitType || '1PN',
           area,
           direction: data.direction || '',
           view: data.view || '',
@@ -63,7 +64,9 @@ export async function saveUnit(data: any) {
     }
     revalidatePath('/admin')
     revalidatePath('/admin/units')
-    return { success: true }
+    revalidatePath('/')
+    revalidatePath('/inventory')
+    return { success: true, unit }
   } catch (e: any) {
     return { error: e.message }
   }
@@ -71,8 +74,14 @@ export async function saveUnit(data: any) {
 
 export async function deleteUnit(id: string) {
   try {
-    await prisma.unit.delete({ where: { id } })
+    const existing = await prisma.unit.findUnique({ where: { id } })
+    if (existing) {
+      await prisma.unit.delete({ where: { id } })
+    }
+    revalidatePath('/admin')
     revalidatePath('/admin/units')
+    revalidatePath('/')
+    revalidatePath('/inventory')
     return { success: true }
   } catch (e: any) {
     return { error: e.message }
@@ -86,6 +95,7 @@ export async function bulkUpdateUnitStatus(ids: string[], status: string) {
       data: { status },
     })
     revalidatePath('/admin/units')
+    revalidatePath('/')
     return { success: true, count: ids.length }
   } catch (e: any) {
     return { error: e.message }
@@ -94,10 +104,8 @@ export async function bulkUpdateUnitStatus(ids: string[], status: string) {
 
 export async function bulkUpdateUnitPrice(ids: string[], newPrice: number, reason: string) {
   try {
-    // Get existing prices for history
     const existing = await prisma.unit.findMany({ where: { id: { in: ids } } })
     
-    // Create price history records
     await prisma.priceHistory.createMany({
       data: existing.map((u) => ({
         unitId: u.id,
@@ -108,13 +116,13 @@ export async function bulkUpdateUnitPrice(ids: string[], newPrice: number, reaso
       })),
     })
 
-    // Update prices
     await prisma.unit.updateMany({
       where: { id: { in: ids } },
       data: { basePrice: newPrice },
     })
 
     revalidatePath('/admin/units')
+    revalidatePath('/')
     return { success: true, count: ids.length }
   } catch (e: any) {
     return { error: e.message }
@@ -141,13 +149,15 @@ export async function savePolicy(data: any) {
       priority: parseInt(data.priority) || 0,
     }
 
-    if (data.id) {
-      await prisma.policy.update({ where: { id: data.id }, data: payload })
+    let policy: any = null
+    if (data.id && !String(data.id).startsWith('fb-')) {
+      policy = await prisma.policy.update({ where: { id: data.id }, data: payload })
     } else {
-      await prisma.policy.create({ data: payload })
+      policy = await prisma.policy.create({ data: payload })
     }
     revalidatePath('/admin/policies')
-    return { success: true }
+    revalidatePath('/')
+    return { success: true, policy }
   } catch (e: any) {
     return { error: e.message }
   }
@@ -157,6 +167,7 @@ export async function updatePolicyStatus(id: string, status: string) {
   try {
     await prisma.policy.update({ where: { id }, data: { status } })
     revalidatePath('/admin/policies')
+    revalidatePath('/')
     return { success: true }
   } catch (e: any) {
     return { error: e.message }
@@ -165,8 +176,12 @@ export async function updatePolicyStatus(id: string, status: string) {
 
 export async function deletePolicy(id: string) {
   try {
-    await prisma.policy.delete({ where: { id } })
+    const existing = await prisma.policy.findUnique({ where: { id } })
+    if (existing) {
+      await prisma.policy.delete({ where: { id } })
+    }
     revalidatePath('/admin/policies')
+    revalidatePath('/')
     return { success: true }
   } catch (e: any) {
     return { error: e.message }
@@ -177,8 +192,9 @@ export async function deletePolicy(id: string) {
 
 export async function savePaymentPlan(data: any) {
   try {
-    if (data.id) {
-      await prisma.paymentPlan.update({
+    let plan: any = null
+    if (data.id && !String(data.id).startsWith('fb-')) {
+      plan = await prisma.paymentPlan.update({
         where: { id: data.id },
         data: {
           name: data.name,
@@ -188,7 +204,7 @@ export async function savePaymentPlan(data: any) {
         },
       })
     } else {
-      await prisma.paymentPlan.create({
+      plan = await prisma.paymentPlan.create({
         data: {
           name: data.name,
           type: data.type || 'STANDARD',
@@ -198,7 +214,8 @@ export async function savePaymentPlan(data: any) {
       })
     }
     revalidatePath('/admin/payment-plans')
-    return { success: true }
+    revalidatePath('/')
+    return { success: true, plan }
   } catch (e: any) {
     return { error: e.message }
   }
@@ -206,9 +223,7 @@ export async function savePaymentPlan(data: any) {
 
 export async function savePaymentScheduleItems(planId: string, items: any[]) {
   try {
-    // Delete existing
     await prisma.paymentScheduleItem.deleteMany({ where: { paymentPlanId: planId } })
-    // Recreate
     await prisma.paymentScheduleItem.createMany({
       data: items.map((item, i) => ({
         paymentPlanId: planId,
@@ -221,6 +236,7 @@ export async function savePaymentScheduleItems(planId: string, items: any[]) {
       })),
     })
     revalidatePath('/admin/payment-plans')
+    revalidatePath('/')
     return { success: true }
   } catch (e: any) {
     return { error: e.message }
@@ -229,8 +245,12 @@ export async function savePaymentScheduleItems(planId: string, items: any[]) {
 
 export async function deletePaymentPlan(id: string) {
   try {
-    await prisma.paymentPlan.delete({ where: { id } })
+    const existing = await prisma.paymentPlan.findUnique({ where: { id } })
+    if (existing) {
+      await prisma.paymentPlan.delete({ where: { id } })
+    }
     revalidatePath('/admin/payment-plans')
+    revalidatePath('/')
     return { success: true }
   } catch (e: any) {
     return { error: e.message }
@@ -258,13 +278,15 @@ export async function saveLoanProgram(data: any) {
       notes: data.notes || null,
     }
 
-    if (data.id) {
-      await prisma.loanProgram.update({ where: { id: data.id }, data: payload })
+    let program: any = null
+    if (data.id && !String(data.id).startsWith('fb-')) {
+      program = await prisma.loanProgram.update({ where: { id: data.id }, data: payload })
     } else {
-      await prisma.loanProgram.create({ data: payload })
+      program = await prisma.loanProgram.create({ data: payload })
     }
     revalidatePath('/admin/loan-programs')
-    return { success: true }
+    revalidatePath('/')
+    return { success: true, program }
   } catch (e: any) {
     return { error: e.message }
   }
@@ -272,8 +294,12 @@ export async function saveLoanProgram(data: any) {
 
 export async function deleteLoanProgram(id: string) {
   try {
-    await prisma.loanProgram.delete({ where: { id } })
+    const existing = await prisma.loanProgram.findUnique({ where: { id } })
+    if (existing) {
+      await prisma.loanProgram.delete({ where: { id } })
+    }
     revalidatePath('/admin/loan-programs')
+    revalidatePath('/')
     return { success: true }
   } catch (e: any) {
     return { error: e.message }
@@ -283,18 +309,26 @@ export async function deleteLoanProgram(id: string) {
 // ─── SETTINGS ────────────────────────────
 
 export async function getSetting(key: string) {
-  const s = await prisma.setting.findUnique({ where: { key } })
-  return s?.value ?? null
+  try {
+    const s = await prisma.setting.findUnique({ where: { key } })
+    return s?.value ?? null
+  } catch {
+    return null
+  }
 }
 
 export async function upsertSetting(key: string, value: string, label?: string) {
-  await prisma.setting.upsert({
-    where: { key },
-    update: { value },
-    create: { key, value, label },
-  })
-  revalidatePath('/admin/settings')
-  return { success: true }
+  try {
+    await prisma.setting.upsert({
+      where: { key },
+      update: { value },
+      create: { key, value, label },
+    })
+    revalidatePath('/admin/settings')
+    return { success: true }
+  } catch (e: any) {
+    return { error: e.message }
+  }
 }
 
 // ─── BUILDINGS ───────────────────────────
@@ -313,8 +347,9 @@ export async function saveBuilding(data: any) {
       projectId = proj.id
     }
 
-    if (data.id) {
-      await prisma.building.update({
+    let building: any = null
+    if (data.id && !String(data.id).startsWith('fb-')) {
+      building = await prisma.building.update({
         where: { id: data.id },
         data: {
           name: data.name,
@@ -324,7 +359,7 @@ export async function saveBuilding(data: any) {
         },
       })
     } else {
-      await prisma.building.create({
+      building = await prisma.building.create({
         data: {
           projectId,
           name: data.name,
@@ -335,7 +370,7 @@ export async function saveBuilding(data: any) {
       })
     }
     revalidatePath('/admin/buildings')
-    return { success: true }
+    return { success: true, building }
   } catch (e: any) {
     return { error: e.message }
   }
@@ -343,11 +378,13 @@ export async function saveBuilding(data: any) {
 
 export async function deleteBuilding(id: string) {
   try {
-    await prisma.building.delete({ where: { id } })
+    const existing = await prisma.building.findUnique({ where: { id } })
+    if (existing) {
+      await prisma.building.delete({ where: { id } })
+    }
     revalidatePath('/admin/buildings')
     return { success: true }
   } catch (e: any) {
     return { error: e.message }
   }
 }
-

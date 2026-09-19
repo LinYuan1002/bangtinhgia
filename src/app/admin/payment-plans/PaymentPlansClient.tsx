@@ -140,13 +140,12 @@ export default function PaymentPlansClient({ initialPlans }: Props) {
 
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`Xóa phương án thanh toán "${name}"?`)) return
+    setPlans((prev) => prev.filter((p) => p.id !== id))
     startTransition(async () => {
       const res = await deletePaymentPlan(id)
       if (res.error) {
-        alert('Lỗi khi xóa: ' + res.error)
-        return
+        console.warn('Lỗi khi xóa từ server:', res.error)
       }
-      setPlans(plans.filter((p) => p.id !== id))
     })
   }
 

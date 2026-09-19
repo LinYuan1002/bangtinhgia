@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 
-// ─── FALLBACK DATA (Guarantees zero-crash on fresh or unconfigured Vercel environments) ───
+// ─── FALLBACK DATA (Only used if database connection fails) ───
 
 const FALLBACK_UNITS = [
   { id: 'fb-1', unitCode: 'S1-0612', buildingCode: 'S1', floorNumber: 6, unitTypeName: '1PN+', area: 45.1, direction: 'Nam', view: 'Công viên trung tâm', basePrice: 2500000000, pricePerM2: 55432372, status: 'AVAILABLE', imageUrl: null },
@@ -15,7 +15,7 @@ const FALLBACK_UNITS = [
 
 const FALLBACK_POLICIES = [
   {
-    id: 'p-1',
+    id: 'fb-p1',
     name: 'Chính sách Mở Bán Đợt 1 - Early Bird',
     description: 'Chiết khấu 5% giá trị căn hộ + quà tặng nội thất 20tr',
     discountPercent: 5,
@@ -28,7 +28,7 @@ const FALLBACK_POLICIES = [
     status: 'ACTIVE',
   },
   {
-    id: 'p-2',
+    id: 'fb-p2',
     name: 'Chính sách Thanh Toán Sớm 95%',
     description: 'Chiết khấu bổ sung 8% khi thanh toán sớm 95% trong 15 ngày',
     discountPercent: 8,
@@ -44,7 +44,7 @@ const FALLBACK_POLICIES = [
 
 const FALLBACK_PLANS = [
   {
-    id: 'plan-1',
+    id: 'fb-plan1',
     name: 'Tiến độ thanh toán chuẩn (6 đợt)',
     type: 'STANDARD',
     scheduleItems: [
@@ -57,7 +57,7 @@ const FALLBACK_PLANS = [
     ],
   },
   {
-    id: 'plan-2',
+    id: 'fb-plan2',
     name: 'Thanh toán sớm 95%',
     type: 'FAST',
     scheduleItems: [
@@ -67,7 +67,7 @@ const FALLBACK_PLANS = [
     ],
   },
   {
-    id: 'plan-3',
+    id: 'fb-plan3',
     name: 'Phương án Vay Ngân Hàng 70%',
     type: 'LOAN',
     scheduleItems: [
@@ -80,7 +80,7 @@ const FALLBACK_PLANS = [
 
 const FALLBACK_LOAN_PROGRAMS = [
   {
-    id: 'lp-1',
+    id: 'fb-lp1',
     name: 'Gói vay Vietcombank - HTLS 0% 18 tháng',
     bankName: 'Vietcombank',
     annualInterestRate: 8.5,
@@ -94,7 +94,7 @@ const FALLBACK_LOAN_PROGRAMS = [
     status: 'ACTIVE',
   },
   {
-    id: 'lp-2',
+    id: 'fb-lp2',
     name: 'Gói vay MB Bank - Ưu đãi 6.5% năm đầu',
     bankName: 'MB Bank',
     annualInterestRate: 8.9,
@@ -125,51 +125,47 @@ export async function getUnits(filters?: {
     if (filters?.search) {
       where.unitCode = { contains: filters.search }
     }
-    const units = await prisma.unit.findMany({
+    return await prisma.unit.findMany({
       where,
       orderBy: [{ buildingCode: 'asc' }, { floorNumber: 'asc' }, { unitCode: 'asc' }],
     })
-    return units.length > 0 ? units : FALLBACK_UNITS
   } catch (err) {
-    console.warn('[getUnits] DB error, returning fallback:', err)
+    console.warn('[getUnits] DB connection error, returning fallback:', err)
     return FALLBACK_UNITS
   }
 }
 
 export async function getPolicies() {
   try {
-    const policies = await prisma.policy.findMany({
+    return await prisma.policy.findMany({
       where: { status: 'ACTIVE' },
       orderBy: { createdAt: 'desc' },
     })
-    return policies.length > 0 ? policies : FALLBACK_POLICIES
   } catch (err) {
-    console.warn('[getPolicies] DB error, returning fallback:', err)
+    console.warn('[getPolicies] DB connection error, returning fallback:', err)
     return FALLBACK_POLICIES
   }
 }
 
 export async function getPaymentPlans() {
   try {
-    const plans = await prisma.paymentPlan.findMany({
+    return await prisma.paymentPlan.findMany({
       where: { isActive: true },
       include: { scheduleItems: { orderBy: { stepNumber: 'asc' } } },
     })
-    return plans.length > 0 ? plans : (FALLBACK_PLANS as any)
   } catch (err) {
-    console.warn('[getPaymentPlans] DB error, returning fallback:', err)
+    console.warn('[getPaymentPlans] DB connection error, returning fallback:', err)
     return FALLBACK_PLANS as any
   }
 }
 
 export async function getLoanPrograms() {
   try {
-    const programs = await prisma.loanProgram.findMany({
+    return await prisma.loanProgram.findMany({
       where: { status: 'ACTIVE' },
     })
-    return programs.length > 0 ? programs : FALLBACK_LOAN_PROGRAMS
   } catch (err) {
-    console.warn('[getLoanPrograms] DB error, returning fallback:', err)
+    console.warn('[getLoanPrograms] DB connection error, returning fallback:', err)
     return FALLBACK_LOAN_PROGRAMS
   }
 }
@@ -216,7 +212,6 @@ export async function saveQuote(data: {
     return { id: quote.id }
   } catch (err: any) {
     console.error('[saveQuote] Error saving quote:', err)
-    // Return a client-side generated ID if DB is temporarily unavailable
     return { id: 'quote-' + Date.now() }
   }
 }

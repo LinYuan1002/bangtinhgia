@@ -2,6 +2,9 @@ import { prisma } from '@/lib/prisma'
 import { formatVND } from '@/lib/calculations'
 import Link from 'next/link'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function QuotesAdminPage() {
   const quotes = await prisma.quote.findMany({
     include: {

@@ -73,33 +73,39 @@ export default function PoliciesClient({ initialPolicies }: Props) {
         alert('Lỗi: ' + res.error)
         return
       }
+      if (res.policy) {
+        if (editingPolicy.id) {
+          setPolicies((prev) =>
+            prev.map((p) => (p.id === editingPolicy.id ? res.policy : p))
+          )
+        } else {
+          setPolicies((prev) => [res.policy, ...prev])
+        }
+      }
       setIsModalOpen(false)
-      window.location.reload()
     })
   }
 
   const handleStatusChange = async (id: string, newStatus: string) => {
+    setPolicies((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, status: newStatus } : p))
+    )
     startTransition(async () => {
       const res = await updatePolicyStatus(id, newStatus)
       if (res.error) {
         alert('Lỗi: ' + res.error)
-        return
       }
-      setPolicies((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: newStatus } : p))
-      )
     })
   }
 
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`Xóa chính sách "${name}"?`)) return
+    setPolicies((prev) => prev.filter((p) => p.id !== id))
     startTransition(async () => {
       const res = await deletePolicy(id)
       if (res.error) {
-        alert('Lỗi khi xóa: ' + res.error)
-        return
+        console.warn('Lỗi khi xóa từ server:', res.error)
       }
-      setPolicies((prev) => prev.filter((p) => p.id !== id))
     })
   }
 

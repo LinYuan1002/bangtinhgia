@@ -1,6 +1,9 @@
 import { prisma } from '@/lib/prisma'
 import { formatVND } from '@/lib/calculations'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function PriceHistoryPage() {
   const history = await prisma.priceHistory.findMany({
     include: {
