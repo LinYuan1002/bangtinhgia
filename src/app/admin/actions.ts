@@ -11,24 +11,31 @@ export async function saveUnit(data: any) {
     const area = parseFloat(data.area) || 0
     const pricePerM2 = area > 0 ? basePrice / area : 0
 
+    let existing = null
+    if (data.id && !String(data.id).startsWith('fb-')) {
+      existing = await prisma.unit.findUnique({ where: { id: data.id } }).catch(() => null)
+    }
+    if (!existing && data.unitCode) {
+      existing = await prisma.unit.findUnique({ where: { unitCode: data.unitCode } }).catch(() => null)
+    }
+
     let unit: any = null
 
-    if (data.id && !String(data.id).startsWith('fb-')) {
-      const existing = await prisma.unit.findUnique({ where: { id: data.id } })
-      if (existing && existing.basePrice !== basePrice) {
+    if (existing) {
+      if (existing.basePrice !== basePrice) {
         await prisma.priceHistory.create({
           data: {
-            unitId: data.id,
+            unitId: existing.id,
             oldPrice: existing.basePrice,
             newPrice: basePrice,
             reason: data.priceChangeReason || 'Admin update',
             changedBy: data.changedBy || 'Admin',
           },
-        })
+        }).catch(() => {})
       }
 
       unit = await prisma.unit.update({
-        where: { id: data.id },
+        where: { id: existing.id },
         data: {
           buildingCode: data.buildingCode || data.building || 'S1',
           floorNumber: parseInt(data.floorNumber || data.floor) || 1,
@@ -62,29 +69,59 @@ export async function saveUnit(data: any) {
         },
       })
     }
+
     revalidatePath('/admin')
     revalidatePath('/admin/units')
     revalidatePath('/')
     revalidatePath('/inventory')
     return { success: true, unit }
   } catch (e: any) {
-    return { error: e.message }
+    console.error('[saveUnit] error:', e)
+    return { error: e.message || 'Lỗi khi lưu căn hộ' }
   }
 }
 
 export async function deleteUnit(id: string) {
   try {
-    const existing = await prisma.unit.findUnique({ where: { id } })
-    if (existing) {
-      await prisma.unit.delete({ where: { id } })
-    }
+    const deleted = await prisma.unit.deleteMany({
+      where: {
+        OR: [
+          { id },
+          { unitCode: id },
+        ],
+      },
+    })
     revalidatePath('/admin')
     revalidatePath('/admin/units')
     revalidatePath('/')
     revalidatePath('/inventory')
-    return { success: true }
+    return { success: true, count: deleted.count }
   } catch (e: any) {
-    return { error: e.message }
+    console.error('[deleteUnit] error:', e)
+    return { error: e.message || 'Lỗi khi xóa căn hộ' }
+  }
+}
+
+export async function clearAllSampleUnits() {
+  try {
+    const sampleCodes = ['S1-0612', 'S1-0615', 'S1-1205', 'S2-0810', 'S2-2001']
+    const res = await prisma.unit.deleteMany({
+      where: {
+        OR: [
+          { unitCode: { in: sampleCodes } },
+          { id: { startsWith: 'fb-' } },
+          { id: { startsWith: 'unit-s' } },
+        ],
+      },
+    })
+    revalidatePath('/admin')
+    revalidatePath('/admin/units')
+    revalidatePath('/')
+    revalidatePath('/inventory')
+    return { success: true, count: res.count }
+  } catch (e: any) {
+    console.error('[clearAllSampleUnits] error:', e)
+    return { error: e.message || 'Lỗi khi xóa căn hộ mẫu' }
   }
 }
 
@@ -114,7 +151,7 @@ export async function bulkUpdateUnitPrice(ids: string[], newPrice: number, reaso
         reason,
         changedBy: 'Admin (Bulk)',
       })),
-    })
+    }).catch(() => {})
 
     await prisma.unit.updateMany({
       where: { id: { in: ids } },
@@ -149,12 +186,18 @@ export async function savePolicy(data: any) {
       priority: parseInt(data.priority) || 0,
     }
 
-    let policy: any = null
+    let existing = null
     if (data.id && !String(data.id).startsWith('fb-')) {
-      policy = await prisma.policy.update({ where: { id: data.id }, data: payload })
+      existing = await prisma.policy.findUnique({ where: { id: data.id } }).catch(() => null)
+    }
+
+    let policy: any = null
+    if (existing) {
+      policy = await prisma.policy.update({ where: { id: existing.id }, data: payload })
     } else {
       policy = await prisma.policy.create({ data: payload })
     }
+
     revalidatePath('/admin/policies')
     revalidatePath('/')
     return { success: true, policy }
@@ -176,10 +219,7 @@ export async function updatePolicyStatus(id: string, status: string) {
 
 export async function deletePolicy(id: string) {
   try {
-    const existing = await prisma.policy.findUnique({ where: { id } })
-    if (existing) {
-      await prisma.policy.delete({ where: { id } })
-    }
+    await prisma.policy.deleteMany({ where: { id } })
     revalidatePath('/admin/policies')
     revalidatePath('/')
     return { success: true }
@@ -192,10 +232,15 @@ export async function deletePolicy(id: string) {
 
 export async function savePaymentPlan(data: any) {
   try {
-    let plan: any = null
+    let existing = null
     if (data.id && !String(data.id).startsWith('fb-')) {
+      existing = await prisma.paymentPlan.findUnique({ where: { id: data.id } }).catch(() => null)
+    }
+
+    let plan: any = null
+    if (existing) {
       plan = await prisma.paymentPlan.update({
-        where: { id: data.id },
+        where: { id: existing.id },
         data: {
           name: data.name,
           type: data.type || 'STANDARD',
@@ -245,10 +290,7 @@ export async function savePaymentScheduleItems(planId: string, items: any[]) {
 
 export async function deletePaymentPlan(id: string) {
   try {
-    const existing = await prisma.paymentPlan.findUnique({ where: { id } })
-    if (existing) {
-      await prisma.paymentPlan.delete({ where: { id } })
-    }
+    await prisma.paymentPlan.deleteMany({ where: { id } })
     revalidatePath('/admin/payment-plans')
     revalidatePath('/')
     return { success: true }
@@ -278,9 +320,14 @@ export async function saveLoanProgram(data: any) {
       notes: data.notes || null,
     }
 
-    let program: any = null
+    let existing = null
     if (data.id && !String(data.id).startsWith('fb-')) {
-      program = await prisma.loanProgram.update({ where: { id: data.id }, data: payload })
+      existing = await prisma.loanProgram.findUnique({ where: { id: data.id } }).catch(() => null)
+    }
+
+    let program: any = null
+    if (existing) {
+      program = await prisma.loanProgram.update({ where: { id: existing.id }, data: payload })
     } else {
       program = await prisma.loanProgram.create({ data: payload })
     }
@@ -294,37 +341,9 @@ export async function saveLoanProgram(data: any) {
 
 export async function deleteLoanProgram(id: string) {
   try {
-    const existing = await prisma.loanProgram.findUnique({ where: { id } })
-    if (existing) {
-      await prisma.loanProgram.delete({ where: { id } })
-    }
+    await prisma.loanProgram.deleteMany({ where: { id } })
     revalidatePath('/admin/loan-programs')
     revalidatePath('/')
-    return { success: true }
-  } catch (e: any) {
-    return { error: e.message }
-  }
-}
-
-// ─── SETTINGS ────────────────────────────
-
-export async function getSetting(key: string) {
-  try {
-    const s = await prisma.setting.findUnique({ where: { key } })
-    return s?.value ?? null
-  } catch {
-    return null
-  }
-}
-
-export async function upsertSetting(key: string, value: string, label?: string) {
-  try {
-    await prisma.setting.upsert({
-      where: { key },
-      update: { value },
-      create: { key, value, label },
-    })
-    revalidatePath('/admin/settings')
     return { success: true }
   } catch (e: any) {
     return { error: e.message }
@@ -335,38 +354,30 @@ export async function upsertSetting(key: string, value: string, label?: string) 
 
 export async function saveBuilding(data: any) {
   try {
-    let projectId = data.projectId
-    if (!projectId) {
-      const defaultProject = await prisma.project.findFirst()
-      projectId = defaultProject?.id
-    }
-    if (!projectId) {
-      const proj = await prisma.project.create({
-        data: { name: 'Sun Urban City Hà Nam', code: 'SUC' },
-      })
-      projectId = proj.id
+    let building: any = null
+    const payload = {
+      name: data.name,
+      code: data.code,
+      totalFloors: parseInt(data.totalFloors) || 0,
+      description: data.description || null,
+      projectId: data.projectId || 'proj-suc',
     }
 
-    let building: any = null
-    if (data.id && !String(data.id).startsWith('fb-')) {
+    if (data.id) {
       building = await prisma.building.update({
         where: { id: data.id },
-        data: {
-          name: data.name,
-          code: data.code,
-          totalFloors: parseInt(data.totalFloors) || 0,
-          description: data.description || null,
-        },
+        data: payload,
       })
     } else {
+      // Ensure default project exists
+      await prisma.project.upsert({
+        where: { code: 'SUC' },
+        create: { id: 'proj-suc', name: 'Sun Urban City', code: 'SUC' },
+        update: {},
+      }).catch(() => {})
+
       building = await prisma.building.create({
-        data: {
-          projectId,
-          name: data.name,
-          code: data.code,
-          totalFloors: parseInt(data.totalFloors) || 0,
-          description: data.description || null,
-        },
+        data: payload,
       })
     }
     revalidatePath('/admin/buildings')
@@ -378,13 +389,31 @@ export async function saveBuilding(data: any) {
 
 export async function deleteBuilding(id: string) {
   try {
-    const existing = await prisma.building.findUnique({ where: { id } })
-    if (existing) {
-      await prisma.building.delete({ where: { id } })
-    }
+    await prisma.building.delete({ where: { id } })
     revalidatePath('/admin/buildings')
     return { success: true }
   } catch (e: any) {
     return { error: e.message }
   }
+}
+
+// ─── SETTINGS ───────────────────────────
+
+export async function upsertSetting(key: string, value: string, label?: string) {
+  try {
+    const setting = await prisma.setting.upsert({
+      where: { key },
+      create: { key, value, label },
+      update: { value, label },
+    })
+    revalidatePath('/admin')
+    revalidatePath('/')
+    return { success: true, setting }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+export async function saveSetting(key: string, value: string, label?: string) {
+  return upsertSetting(key, value, label)
 }

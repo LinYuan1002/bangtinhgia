@@ -4,6 +4,7 @@ import path from 'path'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
+  schemaChecked: boolean | undefined
 }
 
 function initPrisma(): PrismaClient {
@@ -15,6 +16,8 @@ function initPrisma(): PrismaClient {
       ? process.env.DATABASE_URL
       : undefined)
 
+  const authToken = process.env.TURSO_AUTH_TOKEN
+
   if (tursoUrl) {
     try {
       const { createClient } = require('@libsql/client')
@@ -22,19 +25,33 @@ function initPrisma(): PrismaClient {
 
       const libsql = createClient({
         url: tursoUrl,
-        authToken: process.env.TURSO_AUTH_TOKEN,
+        authToken: authToken,
       })
 
       const adapter = new PrismaLibSQL(libsql)
-      console.log('[prisma] Connected to Turso libSQL at', tursoUrl)
+      console.log('[prisma] Successfully initialized Prisma with Turso libSQL at', tursoUrl)
+
+      // Trigger background schema check once
+      if (!globalForPrisma.schemaChecked) {
+        globalForPrisma.schemaChecked = true
+        import('./db-init').then(({ ensureDatabaseSchema, seedInitialDataIfEmpty }) => {
+          ensureDatabaseSchema(libsql).then((res) => {
+            if (res.success) {
+              seedInitialDataIfEmpty(libsql).catch(() => {})
+            }
+          }).catch((e) => {
+            console.warn('[prisma] Auto-schema init note:', e.message)
+          })
+        }).catch(() => {})
+      }
+
       return new PrismaClient({ adapter } as any)
-    } catch (e) {
-      console.warn('[prisma] Failed to initialize Turso adapter:', e)
+    } catch (e: any) {
+      console.warn('[prisma] Failed to initialize Turso adapter:', e.message || e)
     }
   }
 
-  // 2. On Vercel serverless, the filesystem is read-only except /tmp.
-  // If dev.db exists, copy it to /tmp/dev.db so SQLite can read and write without EROFS errors.
+  // 2. On Vercel serverless without Turso, filesystem is read-only except /tmp
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
     try {
       const tmpDb = '/tmp/dev.db'
@@ -60,8 +77,8 @@ function initPrisma(): PrismaClient {
           datasources: { db: { url: `file:${tmpDb}` } },
         })
       }
-    } catch (err) {
-      console.warn('[prisma] Vercel SQLite /tmp copy failed:', err)
+    } catch (err: any) {
+      console.warn('[prisma] Vercel SQLite /tmp copy note:', err.message || err)
     }
   }
 

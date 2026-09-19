@@ -17,6 +17,8 @@ async function getStats() {
   }
 }
 
+import DatabaseSyncButton from './DatabaseSyncButton'
+
 export default async function AdminDashboard() {
   const stats = await getStats()
 
@@ -30,7 +32,10 @@ export default async function AdminDashboard() {
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold text-slate-800 mb-6">Tổng quan</h1>
+      <h1 className="text-xl font-bold text-slate-800 mb-6">Tổng quan Quản trị Hệ thống</h1>
+
+      {/* Turso Cloud Database Connection Banner */}
+      <DatabaseSyncButton />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">

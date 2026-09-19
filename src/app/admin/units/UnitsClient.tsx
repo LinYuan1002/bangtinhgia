@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, useTransition, useEffect } from 'react'
-import { saveUnit, deleteUnit, bulkUpdateUnitStatus, bulkUpdateUnitPrice } from '@/app/admin/actions'
+import { saveUnit, deleteUnit, bulkUpdateUnitStatus, bulkUpdateUnitPrice, clearAllSampleUnits } from '@/app/admin/actions'
 import { formatVND } from '@/lib/calculations'
 import {
   getStoredUnits,
@@ -9,6 +9,7 @@ import {
   deleteStoredUnit,
   resetStoredUnitsToDefault,
   saveStoredUnits,
+  clearAllStoredUnits,
 } from '@/lib/clientStore'
 
 interface UnitItem {
@@ -197,8 +198,11 @@ export default function UnitsClient({ initialUnits }: Props) {
     // 2. Persist to server action in background
     startTransition(async () => {
       try {
-        await saveUnit(unitPayload)
-      } catch (err) {
+        const res = await saveUnit(unitPayload)
+        if (res.error) {
+          alert('Lưu trữ cục bộ thành công. Lưu ý đồng bộ server: ' + res.error)
+        }
+      } catch (err: any) {
         console.warn('Background server save note:', err)
       }
     })
@@ -216,9 +220,42 @@ export default function UnitsClient({ initialUnits }: Props) {
     // 2. Delete on server in background
     startTransition(async () => {
       try {
-        await deleteUnit(id)
+        const res = await deleteUnit(id)
+        if (res.error) {
+          console.warn('Server delete note:', res.error)
+        }
       } catch (err) {
         console.warn('Background server delete note:', err)
+      }
+    })
+  }
+
+  const handleClearAllSamples = () => {
+    if (!confirm('Bạn có chắc chắn muốn XÓA TOÀN BỘ CĂN MẪU không? CSDL sẽ được làm sạch để bạn bắt đầu nhập bảng giá thật.')) {
+      return
+    }
+    const sampleCodes = ['S1-0612', 'S1-0615', 'S1-1205', 'S2-0810', 'S2-2001']
+    const remaining = units.filter(
+      (u) =>
+        !sampleCodes.includes(u.unitCode) &&
+        !u.id.startsWith('fb-') &&
+        !u.id.startsWith('unit-s')
+    )
+    if (remaining.length === 0) {
+      clearAllStoredUnits()
+      setUnits([])
+    } else {
+      saveStoredUnits(remaining)
+      setUnits(remaining)
+    }
+    setSelectedIds([])
+
+    startTransition(async () => {
+      const res = await clearAllSampleUnits()
+      if (res.error) {
+        alert('Lưu ý đồng bộ server: ' + res.error)
+      } else {
+        alert('Đã xóa sạch toàn bộ căn hộ mẫu thành công!')
       }
     })
   }
@@ -291,7 +328,14 @@ export default function UnitsClient({ initialUnits }: Props) {
             Tổng cộng {units.length} căn hộ trong hệ thống ({filteredUnits.length} hiển thị)
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <button
+            onClick={handleClearAllSamples}
+            title="Xóa toàn bộ các căn hộ mẫu hiện tại để bắt đầu nhập bảng giá thật"
+            className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 transition shadow-sm"
+          >
+            🗑️ Xóa sạch căn mẫu
+          </button>
           <button
             onClick={handleResetToDefault}
             title="Khôi phục dữ liệu mẫu ban đầu nếu cần"

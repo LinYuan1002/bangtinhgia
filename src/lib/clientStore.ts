@@ -3,16 +3,16 @@
 // ─────────────────────────────────────────────────────────────
 // CLIENT STORAGE ENGINE
 // Provides persistent localStorage-backed state across all pages
-// (Calculator, Inventory, Admin) so changes survive page refreshes
-// even on serverless deployments (Vercel) without external cloud DB.
+// (Calculator, Inventory, Admin) with instant cross-tab custom events
 // ─────────────────────────────────────────────────────────────
 
 const STORAGE_KEYS = {
-  UNITS: 'sun_urban_units_v2',
-  POLICIES: 'sun_urban_policies_v2',
-  PAYMENT_PLANS: 'sun_urban_plans_v2',
-  LOAN_PROGRAMS: 'sun_urban_loans_v2',
-  IS_INITIALIZED: 'sun_urban_initialized_v2',
+  UNITS: 'sun_urban_units_v3',
+  POLICIES: 'sun_urban_policies_v3',
+  PAYMENT_PLANS: 'sun_urban_plans_v3',
+  LOAN_PROGRAMS: 'sun_urban_loans_v3',
+  IS_INITIALIZED: 'sun_urban_initialized_v3',
+  CLEARED_SAMPLES: 'sun_urban_cleared_samples_v3',
 }
 
 // ─── UNITS STORE ──────────────────────────────────────────────
@@ -20,15 +20,23 @@ const STORAGE_KEYS = {
 export function getStoredUnits(fallbackUnits: any[]): any[] {
   if (typeof window === 'undefined') return fallbackUnits
   try {
+    const isCleared = localStorage.getItem(STORAGE_KEYS.CLEARED_SAMPLES) === 'true'
     const raw = localStorage.getItem(STORAGE_KEYS.UNITS)
+
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) {
-        return parsed
+        // If user explicitly cleared samples and array is empty, keep it empty!
+        if (parsed.length === 0 && isCleared) return []
+        // If has items, return them
+        if (parsed.length > 0) return parsed
       }
     }
+
+    if (isCleared) return []
+
     // First time: initialize with fallback units if not yet set
-    if (!localStorage.getItem(STORAGE_KEYS.IS_INITIALIZED)) {
+    if (!localStorage.getItem(STORAGE_KEYS.IS_INITIALIZED) && fallbackUnits.length > 0) {
       localStorage.setItem(STORAGE_KEYS.UNITS, JSON.stringify(fallbackUnits))
       localStorage.setItem(STORAGE_KEYS.IS_INITIALIZED, 'true')
     }
@@ -50,7 +58,9 @@ export function saveStoredUnits(units: any[]): void {
 }
 
 export function addOrUpdateStoredUnit(unit: any, currentUnits: any[]): any[] {
-  const index = currentUnits.findIndex((u) => u.id === unit.id || (unit.unitCode && u.unitCode === unit.unitCode))
+  const index = currentUnits.findIndex(
+    (u) => u.id === unit.id || (unit.unitCode && u.unitCode === unit.unitCode)
+  )
   let updated: any[]
   if (index >= 0) {
     updated = currentUnits.map((u, i) => (i === index ? { ...u, ...unit } : u))
@@ -62,15 +72,30 @@ export function addOrUpdateStoredUnit(unit: any, currentUnits: any[]): any[] {
 }
 
 export function deleteStoredUnit(id: string, currentUnits: any[]): any[] {
-  const updated = currentUnits.filter((u) => u.id !== id)
+  const updated = currentUnits.filter((u) => u.id !== id && u.unitCode !== id)
   saveStoredUnits(updated)
   return updated
+}
+
+export function clearAllStoredUnits(): any[] {
+  if (typeof window === 'undefined') return []
+  try {
+    localStorage.setItem(STORAGE_KEYS.UNITS, JSON.stringify([]))
+    localStorage.setItem(STORAGE_KEYS.CLEARED_SAMPLES, 'true')
+    localStorage.setItem(STORAGE_KEYS.IS_INITIALIZED, 'true')
+    window.dispatchEvent(new CustomEvent('sun_units_updated', { detail: [] }))
+    return []
+  } catch {
+    return []
+  }
 }
 
 export function resetStoredUnitsToDefault(fallbackUnits: any[]): any[] {
   if (typeof window === 'undefined') return fallbackUnits
   try {
+    localStorage.removeItem(STORAGE_KEYS.CLEARED_SAMPLES)
     localStorage.setItem(STORAGE_KEYS.UNITS, JSON.stringify(fallbackUnits))
+    localStorage.setItem(STORAGE_KEYS.IS_INITIALIZED, 'true')
     window.dispatchEvent(new CustomEvent('sun_units_updated', { detail: fallbackUnits }))
     return fallbackUnits
   } catch {
@@ -86,7 +111,10 @@ export function getStoredPolicies(fallbackPolicies: any[]): any[] {
     const raw = localStorage.getItem(STORAGE_KEYS.POLICIES)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+    if (fallbackPolicies && fallbackPolicies.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.POLICIES, JSON.stringify(fallbackPolicies))
     }
     return fallbackPolicies
   } catch {
@@ -112,7 +140,10 @@ export function getStoredPaymentPlans(fallbackPlans: any[]): any[] {
     const raw = localStorage.getItem(STORAGE_KEYS.PAYMENT_PLANS)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+    if (fallbackPlans && fallbackPlans.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.PAYMENT_PLANS, JSON.stringify(fallbackPlans))
     }
     return fallbackPlans
   } catch {
@@ -138,7 +169,10 @@ export function getStoredLoanPrograms(fallbackPrograms: any[]): any[] {
     const raw = localStorage.getItem(STORAGE_KEYS.LOAN_PROGRAMS)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+    if (fallbackPrograms && fallbackPrograms.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.LOAN_PROGRAMS, JSON.stringify(fallbackPrograms))
     }
     return fallbackPrograms
   } catch {

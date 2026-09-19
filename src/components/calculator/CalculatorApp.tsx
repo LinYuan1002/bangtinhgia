@@ -284,23 +284,29 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
 
   // 6. EXPORT PDF & PRINT ACTIONS
   const handleExportPDF = async () => {
-    if (!quoteRef.current || !selectedUnit) return
+    if (!selectedUnit) return
+    // If preview modal is not open, open it first so element is fully mounted and styled
+    if (!isPreviewModalOpen) {
+      setIsPreviewModalOpen(true)
+      await new Promise((r) => setTimeout(r, 400))
+    }
+    if (!quoteRef.current) return
     setIsExporting(true)
     try {
       const html2pdf = (await import('html2pdf.js')).default
       const element = quoteRef.current
       const opt: any = {
-        margin: [8, 8, 8, 8],
-        filename: `Bao_Gia_${selectedUnit.unitCode}.pdf`,
+        margin: [6, 6, 6, 6],
+        filename: `Bao_Gia_Sun_Urban_${selectedUnit.unitCode}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, scrollY: 0, scrollX: 0 },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+        pagebreak: { mode: ['css', 'legacy'] },
       }
       await html2pdf().set(opt).from(element).save()
     } catch (error) {
       console.error('Lỗi khi xuất PDF:', error)
-      alert('Đã xảy ra lỗi khi tạo PDF. Bạn có thể dùng tính năng In / Lưu PDF chuẩn trình duyệt thay thế.')
+      alert('Đã xảy ra lỗi khi tạo PDF. Bạn có thể nhấn "In Phiếu / Lưu PDF (Vector Chuẩn)" để lưu file PDF sắc nét trực tiếp từ trình duyệt.')
     } finally {
       setIsExporting(false)
     }
