@@ -1,7 +1,9 @@
 'use server'
 
-import { prisma } from '@/lib/prisma'
+import { PrismaClient } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
+
+const prisma = new PrismaClient()
 
 export async function saveUnit(data: any) {
   try {

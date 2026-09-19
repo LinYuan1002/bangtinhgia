@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { importUnitsCSV } from '@/app/actions'
-import { saveUnit, deleteUnit, savePolicy, deletePolicy, savePaymentPlan, deletePaymentPlan } from './actions'
+import { saveUnit, deleteUnit, savePolicy, deletePolicy, savePaymentPlan, deletePaymentPlan } from '@/app/admin/actions'
 import { useRouter } from 'next/navigation'
 import { Trash2, Plus, Edit } from 'lucide-react'
 
