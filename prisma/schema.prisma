@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -7,101 +8,311 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Unit {
+// ─────────────────────────────────────────
+// PROJECT HIERARCHY
+// ─────────────────────────────────────────
+
+model Project {
+  id          String     @id @default(cuid())
+  name        String     // "Sun Urban City"
+  code        String     @unique // "SUC"
+  description String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  buildings   Building[]
+  unitTypes   UnitType[]
+  policies    Policy[]
+  loanPrograms LoanProgram[]
+  importBatches ImportBatch[]
+}
+
+model Building {
   id          String   @id @default(cuid())
-  building    String   // e.g. "S1", "S2"
-  floor       Int      // e.g. 6
-  unitCode    String   @unique // e.g. "A-0612"
-  unitType    String   // e.g. "1PN+", "2PN", "Studio"
-  area        Float    // e.g. 45.1
-  direction   String   // e.g. "Nam"
-  view        String   // e.g. "Công viên"
-  basePrice   Float    // e.g. 2500000000
-  status      String   @default("AVAILABLE") // AVAILABLE, HOLD, SOLD
-  imageUrl    String?  // NEW IMAGE URL FIELD
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id])
+  name        String   // "S1", "S2", "The Canopy"
+  code        String   // "S1"
+  description String?
+  totalFloors Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  priceHistory PriceHistory[]
-  quotes       Quote[]
+
+  floors      Floor[]
+  units       Unit[]
+
+  @@unique([projectId, code])
 }
 
-model Policy {
-  id                   String   @id @default(cuid())
-  name                 String
-  startDate            DateTime?
-  endDate              DateTime?
-  discountPercent      Float    @default(0) // e.g. 5 for 5%
-  discountAmount       Float    @default(0) // e.g. 50000000
-  earlyPaymentDiscount Float    @default(0)
-  specialDiscount      Float    @default(0)
-  giftValue            Float    @default(0)
-  bankSupport          Boolean  @default(false)
-  interestRate         Float    @default(0)
-  loanPeriod           Int      @default(0) // in months
-  isActive             Boolean  @default(true)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  
-  quotes               Quote[]
+model Floor {
+  id         String   @id @default(cuid())
+  buildingId String
+  building   Building @relation(fields: [buildingId], references: [id])
+  floorNumber Int
+  name        String? // "Tầng 6", "Tầng Kỹ Thuật"
+  createdAt   DateTime @default(now())
+
+  units       Unit[]
+
+  @@unique([buildingId, floorNumber])
 }
 
-model PaymentPlan {
-  id                   String   @id @default(cuid())
-  name                 String   // "Chuẩn", "Nhanh", "Vay ngân hàng"
-  type                 String   // STANDARD, FAST, LOAN
-  description          String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+model UnitType {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id])
+  name        String   // "Studio", "1PN", "2PN", "3PN", "Penthouse"
+  code        String   // "STD", "1BR", "2BR", "3BR", "PH"
+  bedrooms    Int      @default(0)
+  bathrooms   Int      @default(1)
+  description String?
+  createdAt   DateTime @default(now())
 
-  schedules            PaymentSchedule[]
-  quotes               Quote[]
+  units       Unit[]
+
+  @@unique([projectId, code])
 }
 
-model PaymentSchedule {
-  id            String   @id @default(cuid())
-  paymentPlanId String
-  paymentPlan   PaymentPlan @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
-  
-  stepNumber    Int      // 1, 2, 3
-  stepName      String   // "Đặt cọc", "Đợt 1"
-  percentValue  Float    // 5 for 5%
-  timePoint     String   // "T0", "T+30 ngày"
+// ─────────────────────────────────────────
+// UNITS (CĂN HỘ)
+// ─────────────────────────────────────────
+
+model Unit {
+  id          String   @id @default(cuid())
+  projectId   String?
+  buildingId  String?
+  floorId     String?
+  unitTypeId  String?
+
+  // Optional FK relations (nullable for backward compat)
+  building    Building? @relation(fields: [buildingId], references: [id])
+  floor       Floor?    @relation(fields: [floorId], references: [id])
+  unitType    UnitType? @relation(fields: [unitTypeId], references: [id])
+
+  // Core fields (kept as strings for backward compat + import flexibility)
+  buildingCode  String   // "S1"
+  floorNumber   Int      // 6
+  unitCode      String   @unique // "A-0612"
+  unitTypeName  String   // "2PN"
+  area          Float    // 45.1 m²
+  bedrooms      Int      @default(0)
+  bathrooms     Int      @default(1)
+  direction     String   @default("") // "Nam", "Bắc"
+  view          String   @default("") // "Công viên", "Hồ"
+  basePrice     Float    // VND integer stored as float
+  pricePerM2    Float    @default(0)
+  status        String   @default("AVAILABLE") // AVAILABLE|HOLD|SOLD|LOCKED|UNAVAILABLE
+  imageUrl      String?
+  notes         String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  priceHistory  PriceHistory[]
+  quotes        Quote[]
+
+  @@index([buildingCode])
+  @@index([status])
+  @@index([unitTypeName])
 }
+
+// ─────────────────────────────────────────
+// PRICE HISTORY (IMMUTABLE AUDIT LOG)
+// ─────────────────────────────────────────
 
 model PriceHistory {
+  id          String   @id @default(cuid())
+  unitId      String
+  unit        Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  oldPrice    Float
+  newPrice    Float
+  reason      String   @default("")
+  changedBy   String   @default("Admin")
+  createdAt   DateTime @default(now())
+}
+
+// ─────────────────────────────────────────
+// POLICIES (CHIẾT KHẤU)
+// ─────────────────────────────────────────
+
+model Policy {
+  id                      String   @id @default(cuid())
+  projectId               String?
+  project                 Project? @relation(fields: [projectId], references: [id])
+  name                    String
+  description             String?
+
+  // Date range
+  effectiveFrom           DateTime?
+  effectiveTo             DateTime?
+
+  // Discount values
+  discountPercent         Float    @default(0)  // 5 = 5%
+  fixedDiscount           Float    @default(0)  // VND
+  earlyPaymentDiscount    Float    @default(0)  // VND hoặc %
+  earlyPaymentDiscountPct Float    @default(0)  // %
+  specialDiscount         Float    @default(0)  // VND
+  giftValue               Float    @default(0)  // VND
+
+  // Calculation mode: STACKED or SEQUENTIAL
+  discountMode            String   @default("STACKED")
+
+  // Status: DRAFT | ACTIVE | EXPIRED | ARCHIVED
+  status                  String   @default("DRAFT")
+
+  priority                Int      @default(0)
+
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  quotes                  Quote[]
+}
+
+// ─────────────────────────────────────────
+// PAYMENT PLANS
+// ─────────────────────────────────────────
+
+model PaymentPlan {
+  id          String   @id @default(cuid())
+  name        String   // "Thanh toán chuẩn", "Thanh toán nhanh"
+  type        String   @default("STANDARD") // STANDARD | FAST | LOAN
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  scheduleItems PaymentScheduleItem[]
+  quotes        Quote[]
+}
+
+model PaymentScheduleItem {
+  id            String      @id @default(cuid())
+  paymentPlanId String
+  paymentPlan   PaymentPlan @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
+
+  stepNumber    Int         // 1, 2, 3...
+  name          String      // "Đặt cọc", "Đợt 1"
+  percentage    Float       // 5 for 5% — dùng % hoặc fixed
+  fixedAmount   Float?      // VND nếu muốn fixed
+  dueDateNote   String?     // "T0", "T+30 ngày", "Bàn giao"
+  relativeDays  Int?        // số ngày sau ký hợp đồng
+
+  @@index([paymentPlanId])
+}
+
+// ─────────────────────────────────────────
+// LOAN PROGRAMS
+// ─────────────────────────────────────────
+
+model LoanProgram {
+  id                  String   @id @default(cuid())
+  projectId           String?
+  project             Project? @relation(fields: [projectId], references: [id])
+  name                String   // "Vay NH Vietcombank - UT 18 tháng"
+  bankName            String   @default("") // "Vietcombank"
+  annualInterestRate  Float    // 8.5 = 8.5% per year
+  interestRateType    String   @default("FIXED") // FIXED | VARIABLE
+  maxLoanPercent      Float    @default(70)  // 70 = 70% giá trị BĐS
+  maxLoanTermMonths   Int      @default(240) // 20 năm
+  repaymentMethod     String   @default("EQUAL_PAYMENT") // EQUAL_PAYMENT | EQUAL_PRINCIPAL
+  interestSupport     Boolean  @default(false)
+  supportRate         Float    @default(0)  // lãi suất ưu đãi trong thời hạn hỗ trợ
+  supportPeriodMonths Int      @default(0)
+  effectiveFrom       DateTime?
+  effectiveTo         DateTime?
+  status              String   @default("ACTIVE") // ACTIVE | INACTIVE
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────
+// QUOTES (BÁO GIÁ — FULL SNAPSHOT)
+// ─────────────────────────────────────────
+
+model Quote {
   id            String   @id @default(cuid())
+
+  // FK references (chỉ để link, không dùng để tính lại)
   unitId        String
-  unit          Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  oldPrice      Float
-  newPrice      Float
-  updatedBy     String   @default("Admin")
+  unit          Unit     @relation(fields: [unitId], references: [id])
+  policyId      String?
+  policy        Policy?  @relation(fields: [policyId], references: [id])
+  paymentPlanId String?
+  paymentPlan   PaymentPlan? @relation(fields: [paymentPlanId], references: [id])
+
+  // Full snapshots (JSON string — immutable)
+  unitSnapshot        String   // JSON: thông tin căn tại thời điểm tạo
+  policySnapshot      String?  // JSON: thông tin policy
+  calculationSnapshot String   // JSON: kết quả tính toán
+  paymentSnapshot     String?  // JSON: lịch thanh toán
+  loanSnapshot        String?  // JSON: lịch vay (nếu có)
+
+  // Summary fields (để hiển thị nhanh, không dùng để tính lại)
+  snapshotPrice Float
+  totalDiscount Float    @default(0)
+  finalPrice    Float
+
+  // Customer info
+  customerName  String?
+  customerPhone String?
+  customerEmail String?
+  salesName     String?
+  salesPhone    String?
+  notes         String?
+
   createdAt     DateTime @default(now())
 }
 
-model Quote {
-  id               String   @id @default(cuid())
-  unitId           String
-  unit             Unit     @relation(fields: [unitId], references: [id])
-  policyId         String?
-  policy           Policy?  @relation(fields: [policyId], references: [id])
-  paymentPlanId    String?
-  paymentPlan      PaymentPlan? @relation(fields: [paymentPlanId], references: [id])
-  
-  snapshotPrice    Float    // Giá tại thời điểm tạo báo giá
-  totalDiscount    Float
-  finalPrice       Float
-  
-  // Thông tin vay (nếu có)
-  loanAmount       Float?
-  equityAmount     Float?
-  interestRate     Float?
-  loanTermMonths   Int?
-  monthlyPayment   Float?
-  
-  customerName     String?
-  salesName        String?
-  salesPhone       String?
-  
-  createdAt        DateTime @default(now())
+// ─────────────────────────────────────────
+// IMPORT SYSTEM
+// ─────────────────────────────────────────
+
+model ImportBatch {
+  id           String   @id @default(cuid())
+  projectId    String?
+  project      Project? @relation(fields: [projectId], references: [id])
+  fileName     String
+  uploadedBy   String   @default("Admin")
+  totalRows    Int      @default(0)
+  successRows  Int      @default(0)
+  warningRows  Int      @default(0)
+  errorRows    Int      @default(0)
+  status       String   @default("PROCESSING") // PROCESSING|COMPLETED|COMPLETED_WITH_WARNINGS|FAILED
+  errorLog     String?  // JSON array of errors
+  createdAt    DateTime @default(now())
+
+  rows         ImportRow[]
+}
+
+model ImportRow {
+  id           String      @id @default(cuid())
+  batchId      String
+  batch        ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  rowNumber    Int
+  rawData      String      // JSON: original row data
+  mappedData   String?     // JSON: mapped field data
+  status       String      @default("PENDING") // PENDING|SUCCESS|WARNING|ERROR|SKIPPED
+  issues       String?     // JSON array: [{field, message, severity}]
+  createdAt    DateTime    @default(now())
+
+  @@index([batchId])
+}
+
+// ─────────────────────────────────────────
+// SETTINGS
+// ─────────────────────────────────────────
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  label     String?
+  updatedAt DateTime @updatedAt
+
+  // Keys:
+  // discount_calculation_mode: STACKED | SEQUENTIAL
+  // default_project_id
+  // vat_rate: 0.08
 }
