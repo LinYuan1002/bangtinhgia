@@ -3,7 +3,8 @@ import { formatVND, formatArea, formatPricePerM2 } from '@/lib/calculations'
 
 export type QuotePreviewProps = {
   unit: any
-  policy: any | null
+  policy?: any | null
+  policies?: any[]
   paymentPlan: any | null
   schedules: any[]
   basePrice: number
@@ -31,6 +32,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
   const {
     unit,
     policy,
+    policies = [],
     paymentPlan,
     schedules = [],
     basePrice,
@@ -227,13 +229,27 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
             <span className="font-extrabold text-slate-900 text-base">{formatVND(basePrice)}</span>
           </div>
 
-          {policy && (
-            <div className="text-[11px] text-blue-900 bg-blue-50/90 p-2.5 rounded-lg border border-blue-100 my-1">
-              <strong>Chính sách áp dụng:</strong> {policy.name}
-              {policy.description && ` — ${policy.description}`}
-              <span className="ml-2 text-slate-500 font-medium">
-                (Quy tắc tính: {discountMode === 'SEQUENTIAL' ? 'Lũy kế từng phần' : 'Cộng dồn chiết khấu'})
-              </span>
+          {((policies && policies.length > 0) || policy) && (
+            <div className="text-[11px] text-blue-900 bg-blue-50/90 p-3 rounded-xl border border-blue-100 my-1 space-y-1.5">
+              <div className="flex justify-between items-center pb-1 border-b border-blue-200/50">
+                <span className="font-bold text-blue-950 uppercase tracking-wide text-[10px] flex items-center gap-1">
+                  <span>🏷️</span> Chính sách bán hàng áp dụng ({(policies && policies.length > 0 ? policies : [policy]).length} chính sách):
+                </span>
+                <span className="text-[10px] bg-blue-100 px-2 py-0.5 rounded text-blue-800 font-bold">
+                  Quy tắc: {discountMode === 'SEQUENTIAL' ? 'Lũy kế từng phần' : 'Cộng dồn chiết khấu'}
+                </span>
+              </div>
+              <div className="space-y-1 pt-0.5">
+                {(policies && policies.length > 0 ? policies : [policy]).map((p: any, idx: number) => (
+                  <div key={p.id || idx} className="flex items-start gap-1.5 pl-1">
+                    <span className="text-blue-600 font-bold">•</span>
+                    <div>
+                      <strong className="text-slate-900 font-bold">{p.name}</strong>
+                      {p.description && <span className="text-slate-600"> — {p.description}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

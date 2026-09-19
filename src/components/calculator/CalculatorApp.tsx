@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useRef, useTransition, useEffect } from 'react'
 import {
   calculatePrice,
+  calculateMultiPolicyPrice,
   calculatePaymentSchedule,
   calculateLoan,
   calculateLoanEquity,
@@ -48,7 +49,10 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
 
   const [selectedUnitId, setSelectedUnitId] = useState<string>(units[0]?.id || '')
-  const [selectedPolicyId, setSelectedPolicyId] = useState<string>(policies[0]?.id || '')
+  const [selectedPolicyIds, setSelectedPolicyIds] = useState<string[]>(
+    policies[0]?.id ? [policies[0].id] : []
+  )
+  const [discountCalculationMode, setDiscountCalculationMode] = useState<'STACKED' | 'SEQUENTIAL'>('STACKED')
   const [selectedPlanId, setSelectedPlanId] = useState<string>(paymentPlans[0]?.id || '')
   const [selectedLoanProgramId, setSelectedLoanProgramId] = useState<string>(
     loanPrograms[0]?.id || ''
@@ -138,10 +142,24 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
     () => unitsList.find((u) => u.id === selectedUnitId) || unitsList[0] || null,
     [unitsList, selectedUnitId]
   )
-  const selectedPolicy = useMemo(
-    () => policiesList.find((p) => p.id === selectedPolicyId) || null,
-    [policiesList, selectedPolicyId]
+  const selectedPolicies = useMemo(
+    () => policiesList.filter((p) => selectedPolicyIds.includes(p.id)),
+    [policiesList, selectedPolicyIds]
   )
+  const selectedPolicy = selectedPolicies[0] || null
+
+  const togglePolicy = (id: string) => {
+    setSelectedPolicyIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+  const selectAllPolicies = () => {
+    setSelectedPolicyIds(policiesList.map((p) => p.id))
+  }
+  const clearAllPolicies = () => {
+    setSelectedPolicyIds([])
+  }
+
   const selectedPlan = useMemo(
     () => plansList.find((p) => p.id === selectedPlanId) || null,
     [plansList, selectedPlanId]
@@ -151,8 +169,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
     [loansList, selectedLoanProgramId]
   )
 
-
-  // 1. PRICE CALCULATION (Deterministic via Engine)
+  // 1. PRICE CALCULATION (Deterministic Multi-Policy Engine)
   const priceResult = useMemo(() => {
     if (!selectedUnit) {
       return {
@@ -165,22 +182,18 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
         finalPrice: 0,
         originalPricePerM2: 0,
         finalPricePerM2: 0,
-        discountCalculationMode: 'STACKED' as const,
+        discountCalculationMode,
         discountBreakdown: [],
       }
     }
 
-    return calculatePrice({
+    return calculateMultiPolicyPrice({
       basePrice: selectedUnit.basePrice,
       area: selectedUnit.area,
-      percentageDiscount: selectedPolicy?.discountPercent || 0,
-      fixedDiscount: selectedPolicy?.fixedDiscount || selectedPolicy?.discountAmount || 0,
-      earlyPaymentDiscount:
-        selectedPolicy?.earlyPaymentDiscountPct || selectedPolicy?.earlyPaymentDiscount || 0,
-      specialDiscount: selectedPolicy?.specialDiscount || selectedPolicy?.giftValue || 0,
-      discountCalculationMode: (selectedPolicy?.discountMode as any) || 'STACKED',
+      policies: selectedPolicies,
+      discountCalculationMode,
     })
-  }, [selectedUnit, selectedPolicy])
+  }, [selectedUnit, selectedPolicies, discountCalculationMode])
 
   // 2. PAYMENT SCHEDULE CALCULATION
   const paymentScheduleResult = useMemo(() => {
@@ -257,7 +270,8 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
           status: selectedUnit.status,
           imageUrl: selectedUnit.imageUrl,
         },
-        policy: selectedPolicy,
+        policy: selectedPolicies[0] || null,
+        policies: selectedPolicies,
         paymentPlan: selectedPlan,
         priceResult,
         paymentScheduleResult,
@@ -476,56 +490,160 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
             </div>
           </div>
 
-          {/* Section 2: Chính sách & Chiết khấu */}
+          {/* Section 2: Chính sách & Chiết khấu (Hỗ trợ chọn nhiều chính sách) */}
           <div className={`${glassCard} p-6 space-y-4`}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
-                  2
-                </span>
-                Chính Sách Bán Hàng & Chiết Khấu
-              </h2>
-              {selectedPolicy && (
-                <span className="text-xs px-2.5 py-0.5 bg-blue-50 text-blue-700 font-semibold rounded-full">
-                  Mode: {selectedPolicy.discountMode || 'STACKED'}
-                </span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Chương trình ưu đãi
-                </label>
-                <select
-                  value={selectedPolicyId}
-                  onChange={(e) => setSelectedPolicyId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-medium"
-                >
-                  <option value="">— Không áp dụng chính sách —</option>
-                  {policiesList.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
+                    2
+                  </span>
+                  Chính Sách Bán Hàng & Chiết Khấu
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Tích chọn một hoặc nhiều chính sách ưu đãi áp dụng đồng thời
+                </p>
               </div>
 
-              {selectedPolicy && (
-                <div className="bg-slate-50 p-3 rounded-xl text-xs space-y-1 text-slate-600 border border-slate-100">
-                  {priceResult.discountBreakdown.map((item, idx) => (
-                    <div key={idx} className="flex justify-between">
-                      <span>{item.label}:</span>
-                      <strong className="text-emerald-700">-{formatVND(item.amount)}</strong>
-                    </div>
-                  ))}
-                  <div className="flex justify-between pt-1 border-t border-slate-200 font-bold text-slate-900">
-                    <span>Tổng chiết khấu:</span>
-                    <span className="text-emerald-700">-{formatVND(priceResult.totalDiscount)}</span>
-                  </div>
+              {/* Mode Toggle & Select All Controls */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setDiscountCalculationMode('STACKED')}
+                    className={`px-2.5 py-1 rounded-lg transition ${
+                      discountCalculationMode === 'STACKED'
+                        ? 'bg-white text-blue-700 shadow-sm font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Tính tất cả % chiết khấu trên Giá gốc ban đầu"
+                  >
+                    Cộng dồn (Stacked)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountCalculationMode('SEQUENTIAL')}
+                    className={`px-2.5 py-1 rounded-lg transition ${
+                      discountCalculationMode === 'SEQUENTIAL'
+                        ? 'bg-white text-blue-700 shadow-sm font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Chiết khấu tiếp theo tính trên giá còn lại sau chiết khấu trước"
+                  >
+                    Lũy kế (Sequential)
+                  </button>
                 </div>
-              )}
+
+                <button
+                  type="button"
+                  onClick={selectAllPolicies}
+                  className="px-2.5 py-1 text-xs text-blue-600 hover:bg-blue-50 font-semibold rounded-lg border border-blue-200 transition"
+                >
+                  Chọn tất cả
+                </button>
+                <button
+                  type="button"
+                  onClick={clearAllPolicies}
+                  className="px-2.5 py-1 text-xs text-slate-500 hover:bg-slate-100 font-medium rounded-lg border border-slate-200 transition"
+                >
+                  Bỏ chọn
+                </button>
+              </div>
             </div>
+
+            {/* Interactive Policy Multi-Choice Grid */}
+            {policiesList.length === 0 ? (
+              <div className="text-xs text-slate-400 p-4 text-center border border-dashed rounded-xl">
+                Chưa có chính sách nào. Bạn có thể thêm trong trang Quản trị Admin.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {policiesList.map((p) => {
+                  const isSelected = selectedPolicyIds.includes(p.id)
+                  const hasPct = (p.discountPercent || 0) > 0
+                  const hasEarly = (p.earlyPaymentDiscountPct || p.earlyPaymentDiscount || 0) > 0
+                  const hasGift = (p.giftValue || p.specialDiscount || 0) > 0
+                  const hasFixed = (p.fixedDiscount || 0) > 0
+
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => togglePolicy(p.id)}
+                      className={`cursor-pointer p-3.5 rounded-xl border transition-all duration-200 flex items-start gap-3 select-none ${
+                        isSelected
+                          ? 'bg-blue-50/90 border-blue-400 shadow-sm ring-2 ring-blue-500/20'
+                          : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+                      }`}
+                    >
+                      <div className="pt-0.5">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}} // click handled by parent container
+                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`text-xs font-bold truncate ${isSelected ? 'text-blue-900' : 'text-slate-800'}`}>
+                            {p.name}
+                          </span>
+                        </div>
+                        {p.description && (
+                          <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
+                            {p.description}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          {hasPct && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                              CK: {p.discountPercent}%
+                            </span>
+                          )}
+                          {hasEarly && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                              TTS: {p.earlyPaymentDiscountPct || p.earlyPaymentDiscount}%
+                            </span>
+                          )}
+                          {hasGift && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                              Quà: {formatVND(p.giftValue || p.specialDiscount)}
+                            </span>
+                          )}
+                          {hasFixed && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                              Giảm: {formatVND(p.fixedDiscount)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Active Discounts Breakdown Bar */}
+            {priceResult.discountBreakdown.length > 0 && (
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs space-y-1.5 mt-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 pb-1.5 border-b border-slate-200 flex justify-between items-center">
+                  <span>Chi tiết các khoản chiết khấu đang áp dụng ({priceResult.discountBreakdown.length}):</span>
+                  <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded font-bold">
+                    {discountCalculationMode === 'SEQUENTIAL' ? 'Lũy kế từng phần' : 'Cộng dồn (Stacked)'}
+                  </span>
+                </div>
+                {priceResult.discountBreakdown.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-slate-700 pl-2">
+                    <span>• {item.label}:</span>
+                    <strong className="text-emerald-700">-{formatVND(item.amount)}</strong>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200 font-extrabold text-slate-900 text-sm">
+                  <span>TỔNG CHIẾT KHẤU ĐƯỢC HƯỞNG:</span>
+                  <span className="text-emerald-700 text-base font-black">-{formatVND(priceResult.totalDiscount)}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Section 3: Phương án thanh toán */}
@@ -856,6 +974,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
                   ref={quoteRef}
                   unit={selectedUnit}
                   policy={selectedPolicy}
+                  policies={selectedPolicies}
                   paymentPlan={selectedPlan}
                   schedules={paymentScheduleResult?.installments || []}
                   basePrice={priceResult.basePrice}
@@ -902,6 +1021,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
             ref={quoteRef}
             unit={selectedUnit || unitsList[0]}
             policy={selectedPolicy}
+            policies={selectedPolicies}
             paymentPlan={selectedPlan}
             schedules={paymentScheduleResult?.installments || []}
             basePrice={priceResult.basePrice}

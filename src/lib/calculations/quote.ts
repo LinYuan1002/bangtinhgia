@@ -34,6 +34,7 @@ export interface CreateQuoteInput {
     giftValue?: number
     discountMode?: string
   } | null
+  policies?: any[]
   paymentPlan?: {
     id: string
     name: string
@@ -89,7 +90,9 @@ export function buildQuoteSnapshot(input: CreateQuoteInput): QuoteSnapshotPayloa
 
   return {
     unitId: unit.id,
-    policyId: policy?.id,
+    policyId: (input.policies && input.policies.length > 0)
+      ? input.policies.map((p) => p.id).join(',')
+      : policy?.id,
     paymentPlanId: paymentPlan?.id,
     unitSnapshot: {
       id: unit.id,
@@ -105,7 +108,18 @@ export function buildQuoteSnapshot(input: CreateQuoteInput): QuoteSnapshotPayloa
       status: unit.status,
       imageUrl: unit.imageUrl,
     },
-    policySnapshot: policy
+    policySnapshot: (input.policies && input.policies.length > 0)
+      ? input.policies.map((p) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          discountPercent: p.discountPercent,
+          fixedDiscount: p.fixedDiscount,
+          earlyPaymentDiscountPct: p.earlyPaymentDiscountPct,
+          giftValue: p.giftValue,
+          discountMode: p.discountMode,
+        }))
+      : policy
       ? {
           id: policy.id,
           name: policy.name,

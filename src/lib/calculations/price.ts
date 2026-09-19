@@ -168,3 +168,124 @@ export function calculateFinalPrice(basePrice: number, policy: any): number {
 export function calculatePricePerSquareMeter(finalPrice: number, area: number): number {
   return area > 0 ? finalPrice / area : 0
 }
+
+/**
+ * MULTI-POLICY CALCULATION:
+ * Allows multiple policies to be combined simultaneously.
+ * Supports both STACKED (all % on basePrice) and SEQUENTIAL (each % on remaining price).
+ */
+export interface MultiPolicyPriceInput {
+  basePrice: number
+  area: number
+  policies: any[]
+  discountCalculationMode?: DiscountCalculationMode
+}
+
+export function calculateMultiPolicyPrice(input: MultiPolicyPriceInput): PriceResult {
+  const {
+    basePrice,
+    area,
+    policies = [],
+    discountCalculationMode = 'STACKED',
+  } = input
+
+  if (!policies || policies.length === 0) {
+    const originalPricePerM2 = area > 0 ? basePrice / area : 0
+    return {
+      basePrice,
+      percentageDiscountAmount: 0,
+      fixedDiscountAmount: 0,
+      earlyPaymentDiscountAmount: 0,
+      specialDiscountAmount: 0,
+      totalDiscount: 0,
+      finalPrice: basePrice,
+      originalPricePerM2,
+      finalPricePerM2: originalPricePerM2,
+      discountCalculationMode,
+      discountBreakdown: [],
+    }
+  }
+
+  // Build ordered DiscountEntry list from all selected policies
+  const discountEntries: DiscountEntry[] = []
+
+  for (const p of policies) {
+    const pct = parseFloat(p.discountPercent) || 0
+    const fixed = parseFloat(p.fixedDiscount || p.discountAmount) || 0
+    const earlyPct = parseFloat(p.earlyPaymentDiscountPct || p.earlyPaymentDiscount) || 0
+    const gift = parseFloat(p.giftValue || p.specialDiscount) || 0
+
+    if (pct > 0) {
+      discountEntries.push({
+        key: `${p.id}-pct`,
+        name: `${p.name} (CK ${pct}%)`,
+        percent: pct,
+      })
+    }
+
+    if (earlyPct > 0) {
+      discountEntries.push({
+        key: `${p.id}-early`,
+        name: `TTS ${p.name} (CK ${earlyPct}%)`,
+        percent: earlyPct,
+      })
+    }
+
+    if (fixed > 0) {
+      discountEntries.push({
+        key: `${p.id}-fixed`,
+        name: `Chiết khấu cố định: ${p.name}`,
+        fixedAmount: fixed,
+      })
+    }
+
+    if (gift > 0) {
+      discountEntries.push({
+        key: `${p.id}-gift`,
+        name: `Quà tặng: ${p.name}`,
+        fixedAmount: gift,
+      })
+    }
+  }
+
+  // Calculate based on selected mode
+  const calcOutput =
+    discountCalculationMode === 'SEQUENTIAL'
+      ? calculateSequentialDiscount(basePrice, discountEntries)
+      : calculateStackedDiscount(basePrice, discountEntries)
+
+  let percentageDiscountAmount = 0
+  let fixedDiscountAmount = 0
+  let earlyPaymentDiscountAmount = 0
+  let specialDiscountAmount = 0
+
+  for (const s of calcOutput.steps) {
+    if (s.key.endsWith('-pct')) percentageDiscountAmount += s.amount
+    else if (s.key.endsWith('-early')) earlyPaymentDiscountAmount += s.amount
+    else if (s.key.endsWith('-fixed')) fixedDiscountAmount += s.amount
+    else if (s.key.endsWith('-gift')) specialDiscountAmount += s.amount
+  }
+
+  const totalDiscount = calcOutput.totalDiscount
+  const finalPrice = calcOutput.finalPrice
+  const originalPricePerM2 = area > 0 ? basePrice / area : 0
+  const finalPricePerM2 = area > 0 ? finalPrice / area : 0
+
+  return {
+    basePrice,
+    percentageDiscountAmount,
+    fixedDiscountAmount,
+    earlyPaymentDiscountAmount,
+    specialDiscountAmount,
+    totalDiscount,
+    finalPrice,
+    originalPricePerM2,
+    finalPricePerM2,
+    discountCalculationMode,
+    discountBreakdown: calcOutput.steps.map((s) => ({
+      label: s.name,
+      percent: s.percent,
+      amount: s.amount,
+    })),
+  }
+}

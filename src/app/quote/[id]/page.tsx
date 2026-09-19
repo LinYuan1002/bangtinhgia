@@ -178,12 +178,34 @@ export default async function QuoteViewPage({ params }: Props) {
               2. Chi Tiết Giá & Chính Sách Chiết Khấu
             </h2>
 
-            {policyData && (
-              <div className="mb-4 p-3 bg-blue-50/70 border border-blue-100 rounded-xl text-xs text-blue-900">
-                <strong>Chính sách áp dụng:</strong> {policyData.name}
-                {policyData.description && ` (${policyData.description})`}
-              </div>
-            )}
+            {(() => {
+              const policyList = Array.isArray(policyData)
+                ? policyData
+                : policyData
+                ? [policyData]
+                : []
+              if (policyList.length === 0) return null
+              return (
+                <div className="mb-4 p-3.5 bg-blue-50/70 border border-blue-100 rounded-xl text-xs text-blue-900 space-y-1.5">
+                  <div className="font-bold uppercase tracking-wider text-[11px] text-blue-800">
+                    {policyList.length > 1
+                      ? `Các chính sách ưu đãi áp dụng đồng thời (${policyList.length}):`
+                      : 'Chính sách ưu đãi áp dụng:'}
+                  </div>
+                  <div className="space-y-1">
+                    {policyList.map((p: any, idx: number) => (
+                      <div key={p.id || idx} className="flex items-start gap-1.5 pl-1">
+                        <span className="text-blue-600 font-bold">•</span>
+                        <div>
+                          <strong className="text-slate-900">{p.name}</strong>
+                          {p.description && <span className="text-slate-600"> — {p.description}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
 
             <div className="space-y-2 text-sm">
               <div className="flex justify-between py-1.5 border-b border-slate-100">
