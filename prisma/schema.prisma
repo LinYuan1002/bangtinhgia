@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Unit {
+  id          String   @id @default(cuid())
+  building    String   // e.g. "S1", "S2"
+  floor       Int      // e.g. 6
+  unitCode    String   @unique // e.g. "A-0612"
+  unitType    String   // e.g. "1PN+", "2PN", "Studio"
+  area        Float    // e.g. 45.1
+  direction   String   // e.g. "Nam"
+  view        String   // e.g. "Công viên"
+  basePrice   Float    // e.g. 2500000000
+  status      String   @default("AVAILABLE") // AVAILABLE, HOLD, SOLD
+  imageUrl    String?  // NEW IMAGE URL FIELD
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  priceHistory PriceHistory[]
+  quotes       Quote[]
+}
+
+model Policy {
+  id                   String   @id @default(cuid())
+  name                 String
+  startDate            DateTime?
+  endDate              DateTime?
+  discountPercent      Float    @default(0) // e.g. 5 for 5%
+  discountAmount       Float    @default(0) // e.g. 50000000
+  earlyPaymentDiscount Float    @default(0)
+  specialDiscount      Float    @default(0)
+  giftValue            Float    @default(0)
+  bankSupport          Boolean  @default(false)
+  interestRate         Float    @default(0)
+  loanPeriod           Int      @default(0) // in months
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  
+  quotes               Quote[]
+}
+
+model PaymentPlan {
+  id                   String   @id @default(cuid())
+  name                 String   // "Chuẩn", "Nhanh", "Vay ngân hàng"
+  type                 String   // STANDARD, FAST, LOAN
+  description          String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  schedules            PaymentSchedule[]
+  quotes               Quote[]
+}
+
+model PaymentSchedule {
+  id            String   @id @default(cuid())
+  paymentPlanId String
+  paymentPlan   PaymentPlan @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
+  
+  stepNumber    Int      // 1, 2, 3
+  stepName      String   // "Đặt cọc", "Đợt 1"
+  percentValue  Float    // 5 for 5%
+  timePoint     String   // "T0", "T+30 ngày"
+}
+
+model PriceHistory {
+  id            String   @id @default(cuid())
+  unitId        String
+  unit          Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  oldPrice      Float
+  newPrice      Float
+  updatedBy     String   @default("Admin")
+  createdAt     DateTime @default(now())
+}
+
+model Quote {
+  id               String   @id @default(cuid())
+  unitId           String
+  unit             Unit     @relation(fields: [unitId], references: [id])
+  policyId         String?
+  policy           Policy?  @relation(fields: [policyId], references: [id])
+  paymentPlanId    String?
+  paymentPlan      PaymentPlan? @relation(fields: [paymentPlanId], references: [id])
+  
+  snapshotPrice    Float    // Giá tại thời điểm tạo báo giá
+  totalDiscount    Float
+  finalPrice       Float
+  
+  // Thông tin vay (nếu có)
+  loanAmount       Float?
+  equityAmount     Float?
+  interestRate     Float?
+  loanTermMonths   Int?
+  monthlyPayment   Float?
+  
+  customerName     String?
+  salesName        String?
+  salesPhone       String?
+  
+  createdAt        DateTime @default(now())
+}
