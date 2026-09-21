@@ -432,68 +432,49 @@ export async function seedInitialDataIfEmpty(client?: Client) {
       })
     }
 
-    // Seed Payment Plans
+    // Seed Payment Plans (4 official plans from Sun Group Excel sheets)
+    // 1. Plan Loan 70%
     await db.execute({
       sql: `INSERT OR REPLACE INTO "PaymentPlan" (id, name, type, description, isActive) VALUES (?, ?, ?, ?, ?)`,
-      args: ['plan-tts-95', 'Thanh toán sớm 95% (Hạn 25/09/2026)', 'FAST', 'Thanh toán 95% muộn nhất ngày 25/09/2026 hưởng chiết khấu 9.5%', 1],
+      args: ['plan-loan', 'Phương án Vay Ngân Hàng 70% (HTLS 0%)', 'LOAN', 'Hỗ trợ lãi suất 0%, ân hạn nợ gốc & miễn phí trả nợ trước hạn trong thời gian HTLS (5 đợt)', 1],
     })
-    const tts95Schedules = [
-      ['plan-tts-95', 1, 'Đặt cọc (Studio 50tr, 1BR+ 100tr, 2BR 150tr)', 5, 'Ngay khi ký TTĐC'],
-      ['plan-tts-95', 2, 'Đợt 1 (Ký HĐMB & TT 95%)', 90, 'Muộn nhất ngày 25/09/2026'],
-      ['plan-tts-95', 3, 'Đợt 2 (Bàn giao GCN / Sổ)', 5, 'Khi nhận sổ hồng'],
+    const loanSchedules = [
+      ['plan-loan', 1, 'Đợt 1 (Ký TTĐC / Đặt cọc)', 0, 'Ngay khi ký TTĐC (Studio: 50tr, 1PN: 100tr, 2PN: 150tr, 3PN: 200tr)'],
+      ['plan-loan', 2, 'Đợt 2 (Ký HĐMB - Đóng đủ 15% gồm cọc)', 15, 'Dự kiến 25/08/2026 (sau 15 ngày)'],
+      ['plan-loan', 3, 'Đợt 3 (Ngân hàng giải ngân 70%)', 70, 'Trong vòng 15 ngày sau khi ký HĐMB'],
+      ['plan-loan', 4, 'Đợt 4 (Vốn tự có 10%)', 10, 'Dự kiến 25/10/2026 (sau 60 ngày)'],
+      ['plan-loan', 5, 'Đợt 5 (Bàn giao & Cấp GCN)', 5, 'Dự kiến 30/09/2027 (Kèm 100% KPBT 2% & thuế của 5%)'],
     ]
-    for (const s of tts95Schedules) {
+    for (const s of loanSchedules) {
       await db.execute({
         sql: `INSERT OR REPLACE INTO "PaymentScheduleItem" (id, paymentPlanId, stepNumber, name, percentage, dueDateNote) VALUES (?, ?, ?, ?, ?, ?)`,
-        args: [`item-tts95-${s[1]}`, s[0], s[1], s[2], s[3], s[4]],
+        args: [`item-loan-${s[1]}`, s[0], s[1], s[2], s[3], s[4]],
       })
     }
 
+    // 2. Plan Standard 17 Steps
     await db.execute({
       sql: `INSERT OR REPLACE INTO "PaymentPlan" (id, name, type, description, isActive) VALUES (?, ?, ?, ?, ?)`,
-      args: ['plan-tts-70', 'Thanh toán sớm 70% (Hạn 25/09/2026)', 'FAST', 'Thanh toán 70% muộn nhất ngày 25/09/2026 hưởng chiết khấu 4.5%', 1],
-    })
-    const tts70Schedules = [
-      ['plan-tts-70', 1, 'Đặt cọc', 5, 'Ngay khi ký TTĐC'],
-      ['plan-tts-70', 2, 'Đợt 1 (Ký HĐMB & TT 70%)', 65, 'Muộn nhất ngày 25/09/2026'],
-      ['plan-tts-70', 3, 'Đợt 2 (Bàn giao căn hộ)', 25, 'Khi nhận bàn giao nhà'],
-      ['plan-tts-70', 4, 'Đợt 3 (Bàn giao GCN / Sổ)', 5, 'Khi nhận sổ hồng'],
-    ]
-    for (const s of tts70Schedules) {
-      await db.execute({
-        sql: `INSERT OR REPLACE INTO "PaymentScheduleItem" (id, paymentPlanId, stepNumber, name, percentage, dueDateNote) VALUES (?, ?, ?, ?, ?, ?)`,
-        args: [`item-tts70-${s[1]}`, s[0], s[1], s[2], s[3], s[4]],
-      })
-    }
-
-    await db.execute({
-      sql: `INSERT OR REPLACE INTO "PaymentPlan" (id, name, type, description, isActive) VALUES (?, ?, ?, ?, ?)`,
-      args: ['plan-tts-50', 'Thanh toán sớm 50% (Hạn 25/09/2026)', 'FAST', 'Thanh toán 50% muộn nhất ngày 25/09/2026 hưởng chiết khấu 1.5%', 1],
-    })
-    const tts50Schedules = [
-      ['plan-tts-50', 1, 'Đặt cọc', 5, 'Ngay khi ký TTĐC'],
-      ['plan-tts-50', 2, 'Đợt 1 (Ký HĐMB & TT 50%)', 45, 'Muộn nhất ngày 25/09/2026'],
-      ['plan-tts-50', 3, 'Đợt 2 (Bàn giao căn hộ)', 45, 'Khi nhận bàn giao nhà'],
-      ['plan-tts-50', 4, 'Đợt 3 (Bàn giao GCN / Sổ)', 5, 'Khi nhận sổ hồng'],
-    ]
-    for (const s of tts50Schedules) {
-      await db.execute({
-        sql: `INSERT OR REPLACE INTO "PaymentScheduleItem" (id, paymentPlanId, stepNumber, name, percentage, dueDateNote) VALUES (?, ?, ?, ?, ?, ?)`,
-        args: [`item-tts50-${s[1]}`, s[0], s[1], s[2], s[3], s[4]],
-      })
-    }
-
-    await db.execute({
-      sql: `INSERT OR REPLACE INTO "PaymentPlan" (id, name, type, description, isActive) VALUES (?, ?, ?, ?, ?)`,
-      args: ['plan-std', 'Tiến độ thanh toán chuẩn (Không vay)', 'STANDARD', 'Thanh toán giãn đều theo tiến độ thi công', 1],
+      args: ['plan-std', 'Tiến độ thanh toán chuẩn (17 đợt)', 'STANDARD', 'Thanh toán giãn đều định kỳ 2 tháng/lần đến khi nhận bàn giao căn hộ và sổ hồng', 1],
     })
     const stdSchedules = [
-      ['plan-std', 1, 'Đặt cọc', 10, 'Ngay khi ký TTĐC'],
-      ['plan-std', 2, 'Đợt 1 (Ký HĐMB)', 15, 'Sau 15 ngày kể từ TTĐC'],
-      ['plan-std', 3, 'Đợt 2', 15, 'T+60 ngày'],
-      ['plan-std', 4, 'Đợt 3', 15, 'T+120 ngày'],
-      ['plan-std', 5, 'Đợt 4 (Bàn giao nhà)', 40, 'Khi có thông báo bàn giao'],
-      ['plan-std', 6, 'Đợt 5 (Cấp GCN / Sổ)', 5, 'Khi bàn giao sổ hồng'],
+      ['plan-std', 1, 'Đợt 1 (Ký TTĐC / Đặt cọc)', 0, 'Ngay khi ký TTĐC (Studio: 50tr, 1PN: 100tr, 2PN: 150tr, 3PN: 200tr)'],
+      ['plan-std', 2, 'Đợt 2 (Ký HĐMB - Đóng đủ 15% gồm cọc)', 15, 'Dự kiến 25/08/2026'],
+      ['plan-std', 3, 'Đợt 3 (Thanh toán 10%)', 10, 'Dự kiến 25/10/2026'],
+      ['plan-std', 4, 'Đợt 4 (Thanh toán 5%)', 5, 'Dự kiến 25/12/2026'],
+      ['plan-std', 5, 'Đợt 5 (Thanh toán 5%)', 5, 'Dự kiến 25/02/2027'],
+      ['plan-std', 6, 'Đợt 6 (Thanh toán 5%)', 5, 'Dự kiến 25/04/2027'],
+      ['plan-std', 7, 'Đợt 7 (Thanh toán 5%)', 5, 'Dự kiến 25/06/2027'],
+      ['plan-std', 8, 'Đợt 8 (Thanh toán 5%)', 5, 'Dự kiến 25/08/2027'],
+      ['plan-std', 9, 'Đợt 9 (Thanh toán 5%)', 5, 'Dự kiến 25/10/2027'],
+      ['plan-std', 10, 'Đợt 10 (Thanh toán 5%)', 5, 'Dự kiến 25/12/2027'],
+      ['plan-std', 11, 'Đợt 11 (Thanh toán 10%)', 10, 'Dự kiến 25/02/2028'],
+      ['plan-std', 12, 'Đợt 12 (Thanh toán 5%)', 5, 'Dự kiến 25/04/2028'],
+      ['plan-std', 13, 'Đợt 13 (Thanh toán 5%)', 5, 'Dự kiến 25/06/2028'],
+      ['plan-std', 14, 'Đợt 14 (Thanh toán 5%)', 5, 'Dự kiến 25/08/2028'],
+      ['plan-std', 15, 'Đợt 15 (Thanh toán 5%)', 5, 'Dự kiến 25/10/2028'],
+      ['plan-std', 16, 'Đợt 16 (Thanh toán 5%)', 5, 'Dự kiến 25/12/2028'],
+      ['plan-std', 17, 'Đợt 17 (Bàn giao & Cấp GCN)', 5, 'Dự kiến 30/09/2028 (Kèm 100% KPBT 2% & thuế của 5%)'],
     ]
     for (const s of stdSchedules) {
       await db.execute({
@@ -502,20 +483,42 @@ export async function seedInitialDataIfEmpty(client?: Client) {
       })
     }
 
-    // Seed Loan Plan
+    // 3. Plan TTS 70%
     await db.execute({
       sql: `INSERT OR REPLACE INTO "PaymentPlan" (id, name, type, description, isActive) VALUES (?, ?, ?, ?, ?)`,
-      args: ['plan-loan', 'Phương án Vay Ngân Hàng 70% (HTLS 0%)', 'LOAN', 'Hỗ trợ lãi suất 0% và ân hạn nợ gốc', 1],
+      args: ['plan-tts-70', 'Thanh toán sớm 70% (Hạn 25/08/2026)', 'FAST', 'Thanh toán đủ 70% trước 25/08/2026 hưởng chiết khấu 4.5% (8 đợt)', 1],
     })
-    const loanSchedules = [
-      ['plan-loan', 1, 'Đặt cọc (Vốn tự có)', 10, 'Ngay khi ký TTĐC'],
-      ['plan-loan', 2, 'Đợt 1 - Vốn tự có (Ký HĐMB)', 20, 'Trong 15 ngày'],
-      ['plan-loan', 3, 'Đợt 2 - Ngân hàng giải ngân', 70, 'Sau 15 ngày kể từ HĐMB'],
+    const tts70Schedules = [
+      ['plan-tts-70', 1, 'Đợt 1 (Ký HĐTHNV / Đặt cọc)', 0, 'Ngay khi ký HĐTHNV (Studio: 50tr, 1PN: 100tr, 2PN: 150tr, 3PN: 200tr)'],
+      ['plan-tts-70', 2, 'Đợt 2 (Thanh toán lần 2 - Đóng đủ 70% gồm cọc)', 70, 'Muộn nhất ngày 25/08/2026'],
+      ['plan-tts-70', 3, 'Đợt 3 (Thanh toán 5%)', 5, 'Dự kiến 17/02/2028'],
+      ['plan-tts-70', 4, 'Đợt 4 (Thanh toán 5%)', 5, 'Dự kiến 17/04/2028'],
+      ['plan-tts-70', 5, 'Đợt 5 (Thanh toán 5%)', 5, 'Dự kiến 16/06/2028'],
+      ['plan-tts-70', 6, 'Đợt 6 (Thanh toán 5%)', 5, 'Dự kiến 15/08/2028'],
+      ['plan-tts-70', 7, 'Đợt 7 (Thanh toán 5%)', 5, 'Dự kiến 14/10/2028'],
+      ['plan-tts-70', 8, 'Đợt 8 (Bàn giao & Cấp GCN)', 5, 'Dự kiến 30/09/2028 (Kèm 100% KPBT 2% & thuế của 5%)'],
     ]
-    for (const s of loanSchedules) {
+    for (const s of tts70Schedules) {
       await db.execute({
         sql: `INSERT OR REPLACE INTO "PaymentScheduleItem" (id, paymentPlanId, stepNumber, name, percentage, dueDateNote) VALUES (?, ?, ?, ?, ?, ?)`,
-        args: [`item-loan-${s[1]}`, s[0], s[1], s[2], s[3], s[4]],
+        args: [`item-tts70-${s[1]}`, s[0], s[1], s[2], s[3], s[4]],
+      })
+    }
+
+    // 4. Plan TTS 95%
+    await db.execute({
+      sql: `INSERT OR REPLACE INTO "PaymentPlan" (id, name, type, description, isActive) VALUES (?, ?, ?, ?, ?)`,
+      args: ['plan-tts-95', 'Thanh toán sớm 95% (Hạn 25/09/2026)', 'FAST', 'Hoàn thành thanh toán 95% muộn nhất 25/09/2026 hưởng chiết khấu 9.5% (3 đợt)', 1],
+    })
+    const tts95Schedules = [
+      ['plan-tts-95', 1, 'Đợt 1 (Ký HĐTHNV / Đặt cọc)', 0, 'Ngay khi ký HĐTHNV (Studio: 50tr, 1PN: 100tr, 2PN: 150tr, 3PN: 200tr)'],
+      ['plan-tts-95', 2, 'Đợt 2 (Thanh toán lần 2 - Đóng đủ 95% gồm cọc)', 95, 'Muộn nhất ngày 25/09/2026'],
+      ['plan-tts-95', 3, 'Đợt 3 (Bàn giao & Cấp GCN)', 5, 'Dự kiến 30/09/2027 (Kèm 100% KPBT 2% & thuế của 5%)'],
+    ]
+    for (const s of tts95Schedules) {
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO "PaymentScheduleItem" (id, paymentPlanId, stepNumber, name, percentage, dueDateNote) VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [`item-tts95-${s[1]}`, s[0], s[1], s[2], s[3], s[4]],
       })
     }
 

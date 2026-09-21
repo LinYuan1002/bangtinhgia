@@ -75,17 +75,22 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
   // Calculate cumulative schedules
   let runPercent = 0
   let runAmount = 0
-  const enrichedSchedules = schedules.map((s) => {
+  const enrichedSchedules = schedules.map((s, idx) => {
     const pct = Number(s.percentage || s.percentValue || 0)
     const amt = Number(s.amount || 0)
     runPercent += pct
     runAmount += amt
+    const isDep = Boolean(s.isDeposit || (idx === 0 && (pct === 0 || s.name?.toLowerCase().includes('cọc'))))
+    const cumAmt = s.cumulativeAmount != null ? s.cumulativeAmount : runAmount
+    const cumPct = finalPrice > 0 ? Math.round((cumAmt / finalPrice) * 100) : runPercent
+
     return {
       ...s,
       percentage: pct,
       amount: amt,
-      cumPercent: runPercent,
-      cumAmount: runAmount,
+      isDeposit: isDep,
+      cumPercent: isDep && pct === 0 ? '-' : `${cumPct}%`,
+      cumAmount: cumAmt,
     }
   })
 
@@ -328,10 +333,10 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
                   <td className="border p-2 text-center font-bold text-slate-600">{idx + 1}</td>
                   <td className="border p-2 font-medium text-slate-800">{s.name || s.stepName}</td>
                   <td className="border p-2 text-center font-semibold text-blue-700">
-                    {s.percentage}%
+                    {s.isDeposit || s.percentage === 0 ? 'Cọc' : `${s.percentage}%`}
                   </td>
                   <td className="border p-2 text-center text-slate-500 font-medium">
-                    {s.cumPercent}%
+                    {s.cumPercent}
                   </td>
                   <td className="border p-2 text-right font-bold text-slate-900">
                     {formatVND(s.amount)}
@@ -446,8 +451,9 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
               <div className="bg-white/80 p-2 rounded-lg border border-amber-200 text-[11px] space-y-0.5">
                 <span className="text-[10px] text-slate-500 block uppercase font-bold">Quy định mức tiền cọc:</span>
                 <div>• Studio: <strong>50 triệu đồng</strong></div>
-                <div>• 1BR+1: <strong>100 triệu đồng</strong></div>
+                <div>• 1BR / 1PN+: <strong>100 triệu đồng</strong></div>
                 <div>• 2BR: <strong>150 triệu đồng</strong></div>
+                <div>• 3BR: <strong>200 triệu đồng</strong></div>
               </div>
             </div>
 

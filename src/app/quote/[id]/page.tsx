@@ -360,8 +360,9 @@ export default async function QuoteViewPage({ params }: Props) {
                     <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200 text-[11px] space-y-0.5">
                       <span className="text-[10px] text-slate-500 uppercase font-bold block">Quy định mức tiền cọc:</span>
                       <div>• Studio: <strong>50 triệu đồng</strong></div>
-                      <div>• 1BR+1: <strong>100 triệu đồng</strong></div>
+                      <div>• 1BR / 1PN+: <strong>100 triệu đồng</strong></div>
                       <div>• 2BR: <strong>150 triệu đồng</strong></div>
+                      <div>• 3BR: <strong>200 triệu đồng</strong></div>
                     </div>
                   </div>
 

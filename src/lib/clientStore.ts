@@ -10,9 +10,9 @@ const STORAGE_KEYS = {
   UNITS: 'sun_urban_units_v6',
   FOLDERS: 'sun_urban_folders_v7',
   POLICIES: 'sun_urban_policies_v7',
-  PAYMENT_PLANS: 'sun_urban_plans_v7',
+  PAYMENT_PLANS: 'sun_urban_plans_v8',
   LOAN_PROGRAMS: 'sun_urban_loans_v7',
-  IS_INITIALIZED: 'sun_urban_initialized_v7',
+  IS_INITIALIZED: 'sun_urban_initialized_v8',
   CLEARED_SAMPLES: 'sun_urban_cleared_samples_v6',
 }
 
@@ -231,6 +231,17 @@ export function saveStoredPaymentPlans(plans: any[]): void {
     window.dispatchEvent(new CustomEvent('sun_plans_updated', { detail: plans }))
   } catch (err) {
     console.warn('[clientStore] Failed to save payment plans:', err)
+  }
+}
+
+export function resetStoredPaymentPlansToDefault(fallbackPlans: any[]): any[] {
+  if (typeof window === 'undefined') return fallbackPlans
+  try {
+    localStorage.setItem(STORAGE_KEYS.PAYMENT_PLANS, JSON.stringify(fallbackPlans))
+    window.dispatchEvent(new CustomEvent('sun_plans_updated', { detail: fallbackPlans }))
+    return fallbackPlans
+  } catch {
+    return fallbackPlans
   }
 }
 

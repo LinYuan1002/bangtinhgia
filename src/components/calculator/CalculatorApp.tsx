@@ -330,8 +330,8 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
       })) ||
       []
 
-    return calculatePaymentSchedule(priceResult.finalPrice, items)
-  }, [selectedPlan, priceResult.finalPrice])
+    return calculatePaymentSchedule(priceResult.finalPrice, items, selectedUnit)
+  }, [selectedPlan, priceResult.finalPrice, selectedUnit])
 
   // 3. LOAN CALCULATION
   const { loanAmount, equityAmount } = useMemo(() => {
@@ -562,13 +562,15 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
           </div>
         </div>
         <div className="text-xs text-slate-700 bg-white/90 px-3.5 py-2 rounded-xl border border-amber-200">
-          <div className="font-bold text-slate-800 mb-0.5">Định mức nộp cọc:</div>
-          <div className="flex items-center gap-2 text-[11px]">
+          <div className="font-bold text-slate-800 mb-0.5">Định mức nộp cọc theo loại căn:</div>
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
             <span>Studio: <strong className="text-rose-600 font-bold">50tr</strong></span>
             <span>•</span>
-            <span>1BR+1: <strong className="text-rose-600 font-bold">100tr</strong></span>
+            <span>1BR / 1PN+: <strong className="text-rose-600 font-bold">100tr</strong></span>
             <span>•</span>
             <span>2BR: <strong className="text-rose-600 font-bold">150tr</strong></span>
+            <span>•</span>
+            <span>3BR: <strong className="text-rose-600 font-bold">200tr</strong></span>
           </div>
         </div>
       </div>
@@ -963,7 +965,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
                       <tr key={i} className="hover:bg-slate-50">
                         <td className="p-2.5 font-semibold text-slate-800">{inst.name}</td>
                         <td className="p-2.5 text-right font-medium text-blue-600">
-                          {inst.percentage}%
+                          {inst.isDeposit || inst.percentage === 0 ? 'Cọc' : `${inst.percentage}%`}
                         </td>
                         <td className="p-2.5 text-right font-bold text-slate-900">
                           {formatVND(inst.amount)}

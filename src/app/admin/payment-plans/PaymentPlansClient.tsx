@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition, useEffect } from 'react'
 import { savePaymentPlan, deletePaymentPlan } from '@/app/admin/actions'
-import { getStoredPaymentPlans, saveStoredPaymentPlans } from '@/lib/clientStore'
+import { getStoredPaymentPlans, saveStoredPaymentPlans, resetStoredPaymentPlansToDefault } from '@/lib/clientStore'
 import { FALLBACK_PLANS } from '@/lib/fallback-data'
 
 interface ScheduleItem {
@@ -67,17 +67,16 @@ export default function PaymentPlansClient({ initialPlans }: Props) {
 
   const openCreateModal = () => {
     setEditingPlanId(null)
-    setPlanName('')
-    setPlanType('STANDARD')
-    setPlanDesc('')
+    setPlanName('Tiến độ Vay Ngân Hàng HTLS 70%')
+    setPlanType('LOAN')
+    setPlanDesc('Hỗ trợ lãi suất 0%, ân hạn nợ gốc & miễn phí trả nợ trước hạn trong thời gian HTLS (5 đợt)')
     setPlanActive(true)
     setSteps([
-      { name: 'Đặt cọc', percentage: 10, dueDateNote: 'Ngay khi ký TTĐC', relativeDays: 0 },
-      { name: 'Đợt 1 (Ký HĐMB)', percentage: 15, dueDateNote: 'Sau 15 ngày kể từ TTĐC', relativeDays: 15 },
-      { name: 'Đợt 2', percentage: 15, dueDateNote: 'T+60 ngày', relativeDays: 60 },
-      { name: 'Đợt 3', percentage: 15, dueDateNote: 'T+120 ngày', relativeDays: 120 },
-      { name: 'Đợt 4 (Bàn giao nhà)', percentage: 40, dueDateNote: 'Khi thông báo bàn giao', relativeDays: 240 },
-      { name: 'Đợt 5 (Cấp GCN / Sổ)', percentage: 5, dueDateNote: 'Khi bàn giao sổ hồng', relativeDays: 360 },
+      { name: 'Đợt 1 (Ký TTĐC / Đặt cọc)', percentage: 0, dueDateNote: 'Ngay khi ký TTĐC (Studio: 50tr, 1PN: 100tr, 2PN: 150tr, 3PN: 200tr)', relativeDays: 0 },
+      { name: 'Đợt 2 (Ký HĐMB - Đóng đủ 15% gồm cọc)', percentage: 15, dueDateNote: 'Dự kiến 25/08/2026 (sau 15 ngày)', relativeDays: 15 },
+      { name: 'Đợt 3 (Ngân hàng giải ngân 70%)', percentage: 70, dueDateNote: 'Trong vòng 15 ngày sau khi ký HĐMB', relativeDays: 30 },
+      { name: 'Đợt 4 (Vốn tự có 10%)', percentage: 10, dueDateNote: 'Dự kiến 25/10/2026 (sau 60 ngày)', relativeDays: 60 },
+      { name: 'Đợt 5 (Bàn giao & Cấp GCN)', percentage: 5, dueDateNote: 'Dự kiến 30/09/2027 (Kèm 100% KPBT 2% & thuế của 5%)', relativeDays: 360 },
     ])
     setIsModalOpen(true)
   }
@@ -101,8 +100,8 @@ export default function PaymentPlansClient({ initialPlans }: Props) {
       )
     } else {
       setSteps([
-        { name: 'Đặt cọc', percentage: 10, dueDateNote: 'Ngay khi ký TTĐC', relativeDays: 0 },
-        { name: 'Đợt 1 (Ký HĐMB)', percentage: 90, dueDateNote: 'Sau 15 ngày', relativeDays: 15 },
+        { name: 'Đợt 1 (Ký TTĐC / Đặt cọc)', percentage: 0, dueDateNote: 'Ngay khi ký TTĐC', relativeDays: 0 },
+        { name: 'Đợt 2 (Ký HĐMB)', percentage: 100, dueDateNote: 'Sau 15 ngày', relativeDays: 15 },
       ])
     }
     setIsModalOpen(true)
@@ -149,45 +148,62 @@ export default function PaymentPlansClient({ initialPlans }: Props) {
   }
 
   const applyPreset = (presetType: string) => {
-    if (presetType === 'TTS95') {
-      setPlanType('FAST')
+    if (presetType === 'LOAN') {
+      setPlanName('Phương án Vay Ngân Hàng 70% (HTLS 0%)')
+      setPlanType('LOAN')
+      setPlanDesc('Hỗ trợ lãi suất 0%, ân hạn nợ gốc & miễn phí trả nợ trước hạn trong thời gian HTLS (5 đợt)')
       setSteps([
-        { name: 'Đặt cọc (Studio 50tr, 1BR+ 100tr, 2BR 150tr)', percentage: 5, dueDateNote: 'Ngay khi ký TTĐC', relativeDays: 0 },
-        { name: 'Đợt 1 (Ký HĐMB & TT 95%)', percentage: 90, dueDateNote: 'Muộn nhất ngày 25/09/2026', relativeDays: 15 },
-        { name: 'Đợt 2 (Bàn giao GCN / Sổ)', percentage: 5, dueDateNote: 'Khi nhận sổ hồng', relativeDays: 360 },
-      ])
-    } else if (presetType === 'TTS70') {
-      setPlanType('FAST')
-      setSteps([
-        { name: 'Đặt cọc', percentage: 5, dueDateNote: 'Ngay khi ký TTĐC', relativeDays: 0 },
-        { name: 'Đợt 1 (Ký HĐMB & TT 70%)', percentage: 65, dueDateNote: 'Muộn nhất ngày 25/09/2026', relativeDays: 15 },
-        { name: 'Đợt 2 (Bàn giao căn hộ)', percentage: 25, dueDateNote: 'Khi nhận bàn giao nhà', relativeDays: 240 },
-        { name: 'Đợt 3 (Bàn giao GCN / Sổ)', percentage: 5, dueDateNote: 'Khi nhận sổ hồng', relativeDays: 360 },
-      ])
-    } else if (presetType === 'TTS50') {
-      setPlanType('FAST')
-      setSteps([
-        { name: 'Đặt cọc', percentage: 5, dueDateNote: 'Ngay khi ký TTĐC', relativeDays: 0 },
-        { name: 'Đợt 1 (Ký HĐMB & TT 50%)', percentage: 45, dueDateNote: 'Muộn nhất ngày 25/09/2026', relativeDays: 15 },
-        { name: 'Đợt 2 (Bàn giao căn hộ)', percentage: 45, dueDateNote: 'Khi nhận bàn giao nhà', relativeDays: 240 },
-        { name: 'Đợt 3 (Bàn giao GCN / Sổ)', percentage: 5, dueDateNote: 'Khi nhận sổ hồng', relativeDays: 360 },
+        { name: 'Đợt 1 (Ký TTĐC / Đặt cọc)', percentage: 0, dueDateNote: 'Ngay khi ký TTĐC (Studio: 50tr, 1PN: 100tr, 2PN: 150tr, 3PN: 200tr)', relativeDays: 0 },
+        { name: 'Đợt 2 (Ký HĐMB - Đóng đủ 15% gồm cọc)', percentage: 15, dueDateNote: 'Dự kiến 25/08/2026 (sau 15 ngày)', relativeDays: 15 },
+        { name: 'Đợt 3 (Ngân hàng giải ngân 70%)', percentage: 70, dueDateNote: 'Trong vòng 15 ngày sau khi ký HĐMB', relativeDays: 30 },
+        { name: 'Đợt 4 (Vốn tự có 10%)', percentage: 10, dueDateNote: 'Dự kiến 25/10/2026 (sau 60 ngày)', relativeDays: 60 },
+        { name: 'Đợt 5 (Bàn giao & Cấp GCN)', percentage: 5, dueDateNote: 'Dự kiến 30/09/2027 (Kèm 100% KPBT 2% & thuế của 5%)', relativeDays: 360 },
       ])
     } else if (presetType === 'STD') {
+      setPlanName('Tiến độ thanh toán chuẩn (17 đợt)')
       setPlanType('STANDARD')
+      setPlanDesc('Thanh toán giãn đều định kỳ 2 tháng/lần đến khi nhận bàn giao căn hộ và sổ hồng')
       setSteps([
-        { name: 'Đặt cọc', percentage: 10, dueDateNote: 'Ngay khi ký TTĐC', relativeDays: 0 },
-        { name: 'Đợt 1 (Ký HĐMB)', percentage: 15, dueDateNote: 'Sau 15 ngày kể từ TTĐC', relativeDays: 15 },
-        { name: 'Đợt 2', percentage: 15, dueDateNote: 'T+60 ngày', relativeDays: 60 },
-        { name: 'Đợt 3', percentage: 15, dueDateNote: 'T+120 ngày', relativeDays: 120 },
-        { name: 'Đợt 4 (Bàn giao nhà)', percentage: 40, dueDateNote: 'Khi có thông báo bàn giao', relativeDays: 240 },
-        { name: 'Đợt 5 (Cấp GCN / Sổ)', percentage: 5, dueDateNote: 'Khi bàn giao sổ hồng', relativeDays: 360 },
+        { name: 'Đợt 1 (Ký TTĐC / Đặt cọc)', percentage: 0, dueDateNote: 'Ngay khi ký TTĐC (Studio: 50tr, 1PN: 100tr, 2PN: 150tr, 3PN: 200tr)', relativeDays: 0 },
+        { name: 'Đợt 2 (Ký HĐMB - Đóng đủ 15% gồm cọc)', percentage: 15, dueDateNote: 'Dự kiến 25/08/2026', relativeDays: 15 },
+        { name: 'Đợt 3 (Thanh toán 10%)', percentage: 10, dueDateNote: 'Dự kiến 25/10/2026', relativeDays: 60 },
+        { name: 'Đợt 4 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 25/12/2026', relativeDays: 120 },
+        { name: 'Đợt 5 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 25/02/2027', relativeDays: 180 },
+        { name: 'Đợt 6 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 25/04/2027', relativeDays: 240 },
+        { name: 'Đợt 7 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 25/06/2027', relativeDays: 300 },
+        { name: 'Đợt 8 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 25/08/2027', relativeDays: 360 },
+        { name: 'Đợt 9 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 25/10/2027', relativeDays: 420 },
+        { name: 'Đợt 10 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 25/12/2027', relativeDays: 480 },
+        { name: 'Đợt 11 (Thanh toán 10%)', percentage: 10, dueDateNote: 'Dự kiến 25/02/2028', relativeDays: 540 },
+        { name: 'Đợt 12 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 25/04/2028', relativeDays: 600 },
+        { name: 'Đợt 13 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 25/06/2028', relativeDays: 660 },
+        { name: 'Đợt 14 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 25/08/2028', relativeDays: 720 },
+        { name: 'Đợt 15 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 25/10/2028', relativeDays: 780 },
+        { name: 'Đợt 16 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 25/12/2028', relativeDays: 840 },
+        { name: 'Đợt 17 (Bàn giao & Cấp GCN)', percentage: 5, dueDateNote: 'Dự kiến 30/09/2028 (Kèm 100% KPBT 2% & thuế của 5%)', relativeDays: 900 },
       ])
-    } else if (presetType === 'LOAN') {
-      setPlanType('LOAN')
+    } else if (presetType === 'TTS70') {
+      setPlanName('Thanh toán sớm 70% (Hạn 25/08/2026)')
+      setPlanType('FAST')
+      setPlanDesc('Hưởng chiết khấu 4.5% khi thanh toán đủ 70% trước 25/08/2026, phần còn lại trả chậm 2 tháng/lần (8 đợt)')
       setSteps([
-        { name: 'Đặt cọc (Vốn tự có)', percentage: 10, dueDateNote: 'Ngay khi ký TTĐC', relativeDays: 0 },
-        { name: 'Đợt 1 - Vốn tự có (Ký HĐMB)', percentage: 20, dueDateNote: 'Trong 15 ngày', relativeDays: 15 },
-        { name: 'Đợt 2 - Ngân hàng giải ngân', percentage: 70, dueDateNote: 'Sau 15 ngày kể từ HĐMB', relativeDays: 30 },
+        { name: 'Đợt 1 (Ký HĐTHNV / Đặt cọc)', percentage: 0, dueDateNote: 'Ngay khi ký HĐTHNV (Studio: 50tr, 1PN: 100tr, 2PN: 150tr, 3PN: 200tr)', relativeDays: 0 },
+        { name: 'Đợt 2 (Thanh toán lần 2 - Đóng đủ 70% gồm cọc)', percentage: 70, dueDateNote: 'Muộn nhất ngày 25/08/2026', relativeDays: 15 },
+        { name: 'Đợt 3 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 17/02/2028', relativeDays: 180 },
+        { name: 'Đợt 4 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 17/04/2028', relativeDays: 240 },
+        { name: 'Đợt 5 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 16/06/2028', relativeDays: 300 },
+        { name: 'Đợt 6 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 15/08/2028', relativeDays: 360 },
+        { name: 'Đợt 7 (Thanh toán 5%)', percentage: 5, dueDateNote: 'Dự kiến 14/10/2028', relativeDays: 420 },
+        { name: 'Đợt 8 (Bàn giao & Cấp GCN)', percentage: 5, dueDateNote: 'Dự kiến 30/09/2028 (Kèm 100% KPBT 2% & thuế của 5%)', relativeDays: 480 },
+      ])
+    } else if (presetType === 'TTS95') {
+      setPlanName('Thanh toán sớm 95% (Hạn 25/09/2026)')
+      setPlanType('FAST')
+      setPlanDesc('Hưởng chiết khấu tối đa 9.5% khi hoàn thành thanh toán 95% muộn nhất 25/09/2026 (3 đợt)')
+      setSteps([
+        { name: 'Đợt 1 (Ký HĐTHNV / Đặt cọc)', percentage: 0, dueDateNote: 'Ngay khi ký HĐTHNV (Studio: 50tr, 1PN: 100tr, 2PN: 150tr, 3PN: 200tr)', relativeDays: 0 },
+        { name: 'Đợt 2 (Thanh toán lần 2 - Đóng đủ 95% gồm cọc)', percentage: 95, dueDateNote: 'Muộn nhất ngày 25/09/2026', relativeDays: 15 },
+        { name: 'Đợt 3 (Bàn giao & Cấp GCN)', percentage: 5, dueDateNote: 'Dự kiến 30/09/2027 (Kèm 100% KPBT 2% & thuế của 5%)', relativeDays: 360 },
       ])
     }
   }
@@ -256,6 +272,22 @@ export default function PaymentPlansClient({ initialPlans }: Props) {
     })
   }
 
+  const handleResetToOfficialExcel = async () => {
+    if (!confirm('Bạn có chắc chắn muốn khôi phục lại 4 phương án tiến độ thanh toán chuẩn từ file Excel của Sun Group không?')) return
+    const updated = resetStoredPaymentPlansToDefault(FALLBACK_PLANS)
+    setPlans(updated)
+    showToast('Đã khôi phục thành công 4 phương án thanh toán chuẩn từ file Excel!')
+    startTransition(async () => {
+      try {
+        for (const p of FALLBACK_PLANS) {
+          await savePaymentPlan(p)
+        }
+      } catch (err) {
+        console.warn('Sync fallback error:', err)
+      }
+    })
+  }
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Toast Alert */}
@@ -276,12 +308,21 @@ export default function PaymentPlansClient({ initialPlans }: Props) {
             Quản trị viên có thể <strong>chỉnh sửa tỷ lệ %, tên đợt và thời điểm thanh toán</strong> trực tiếp. Mọi thay đổi sẽ cập nhật đồng bộ sang Bảng tính giá.
           </p>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-sm shadow-blue-500/20"
-        >
-          + Thêm Phương Án Mới
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleResetToOfficialExcel}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition border border-slate-200"
+            title="Đồng bộ lại toàn bộ 4 phương án tiến độ từ file Excel của Sun Group"
+          >
+            🔄 Khôi phục 4 phương án gốc Excel
+          </button>
+          <button
+            onClick={openCreateModal}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-sm shadow-blue-500/20"
+          >
+            + Thêm Phương Án Mới
+          </button>
+        </div>
       </div>
 
       {/* Plans List */}
@@ -408,43 +449,36 @@ export default function PaymentPlansClient({ initialPlans }: Props) {
               {/* Presets Bar */}
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                 <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                  ⚡ Mẫu tiến độ có sẵn (Click để áp dụng nhanh):
+                  ⚡ Mẫu tiến độ chuẩn từ Excel Sun Group (Click để áp dụng nhanh):
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => applyPreset('TTS95')}
-                    className="px-2.5 py-1 text-xs bg-white border border-slate-300 hover:border-amber-400 hover:bg-amber-50 rounded-lg font-semibold text-slate-700"
+                    onClick={() => applyPreset('LOAN')}
+                    className="px-3 py-1 text-xs bg-white border border-purple-200 hover:border-purple-400 hover:bg-purple-50 rounded-lg font-bold text-purple-800 shadow-xs"
                   >
-                    TTS 95% (5% - 90% - 5%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('TTS70')}
-                    className="px-2.5 py-1 text-xs bg-white border border-slate-300 hover:border-amber-400 hover:bg-amber-50 rounded-lg font-semibold text-slate-700"
-                  >
-                    TTS 70% (5% - 65% - 25% - 5%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('TTS50')}
-                    className="px-2.5 py-1 text-xs bg-white border border-slate-300 hover:border-amber-400 hover:bg-amber-50 rounded-lg font-semibold text-slate-700"
-                  >
-                    TTS 50% (5% - 45% - 45% - 5%)
+                    🏦 Vay NH 70% (5 đợt - HTLS 0%)
                   </button>
                   <button
                     type="button"
                     onClick={() => applyPreset('STD')}
-                    className="px-2.5 py-1 text-xs bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 rounded-lg font-semibold text-slate-700"
+                    className="px-3 py-1 text-xs bg-white border border-blue-200 hover:border-blue-400 hover:bg-blue-50 rounded-lg font-bold text-blue-800 shadow-xs"
                   >
-                    Tiến độ chuẩn 6 đợt
+                    📋 Tiến độ chuẩn 17 đợt (Ảnh Excel)
                   </button>
                   <button
                     type="button"
-                    onClick={() => applyPreset('LOAN')}
-                    className="px-2.5 py-1 text-xs bg-white border border-slate-300 hover:border-purple-400 hover:bg-purple-50 rounded-lg font-semibold text-slate-700"
+                    onClick={() => applyPreset('TTS70')}
+                    className="px-3 py-1 text-xs bg-white border border-amber-200 hover:border-amber-400 hover:bg-amber-50 rounded-lg font-bold text-amber-800 shadow-xs"
                   >
-                    Vay NH 70% (10% - 20% - 70%)
+                    ⚡ TTS 70% (8 đợt - CK 4.5%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('TTS95')}
+                    className="px-3 py-1 text-xs bg-white border border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50 rounded-lg font-bold text-emerald-800 shadow-xs"
+                  >
+                    ⚡ TTS 95% (3 đợt - CK 9.5%)
                   </button>
                 </div>
               </div>
