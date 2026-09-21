@@ -26,6 +26,7 @@ export type QuotePreviewProps = {
   customerEmail?: string
   salesName?: string
   salesPhone?: string
+  quoteResult?: any
 }
 
 export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props, ref) => {
@@ -54,6 +55,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
     customerEmail,
     salesName,
     salesPhone,
+    quoteResult,
   } = props
 
   const date = new Date().toLocaleDateString('vi-VN', {
@@ -210,80 +212,175 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
         </h2>
 
         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
-          {/* Price Before Tax Details */}
-          <div className="space-y-1.5 pb-2 border-b border-slate-200 text-slate-600">
-            <div className="flex justify-between items-center">
-              <span>• Giá bán thuần trước thuế & phí (chưa VAT & KPBT):</span>
-              <span className="font-medium text-slate-800">{formatVND(netPrice)}</span>
-            </div>
-            <div className="flex justify-between items-center text-[11px] text-slate-500">
-              <span>• Thuế Giá Trị Gia Tăng (VAT 10%):</span>
-              <span>+{formatVND(vatAmount)}</span>
-            </div>
-            <div className="flex justify-between items-center text-[11px] text-slate-500">
-              <span>• Kinh phí bảo trì phần sở hữu chung (KPBT 2%):</span>
-              <span>+{formatVND(maintenanceFee)}</span>
-            </div>
-          </div>
-
-          <div className="flex justify-between items-center py-1 border-b border-slate-200 text-sm">
-            <span className="font-bold text-slate-700">GIÁ BÁN NIÊM YẾT CHỦ ĐẦU TƯ (GỒM VAT & KPBT):</span>
-            <span className="font-extrabold text-slate-900 text-base">{formatVND(basePrice)}</span>
-          </div>
-
-          {((policies && policies.length > 0) || policy) && (
-            <div className="text-[11px] text-blue-900 bg-blue-50/90 p-3 rounded-xl border border-blue-100 my-1 space-y-1.5">
-              <div className="flex flex-wrap justify-between items-center gap-1 pb-1 border-b border-blue-200/50">
-                <span className="font-bold text-blue-950 uppercase tracking-wide text-[10px] flex items-center gap-1">
-                  <span>🏷️</span> Chính sách bán hàng áp dụng ({(policies && policies.length > 0 ? policies : [policy]).length} chính sách):
-                </span>
-                <span className="text-[10px] bg-blue-100 px-2 py-0.5 rounded text-blue-800 font-bold">
-                  Quy tắc: {discountMode === 'SEQUENTIAL' ? 'Lũy kế từng phần' : 'Cộng dồn chiết khấu'}
-                </span>
+          {quoteResult ? (
+            /* ── BÓC TÁCH CHI TIẾT TỪ BỘ MÁY TÍNH GIÁ ĐA CHÍNH SÁCH ── */
+            <div className="space-y-2.5">
+              {/* Active Policy Header */}
+              <div className="flex flex-wrap items-center justify-between gap-1 pb-2 border-b border-slate-200 text-[11px]">
+                <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                  <span className="px-2 py-0.5 rounded bg-blue-100 font-mono">{quoteResult.policyCode}</span>
+                  <span>{quoteResult.policyName}</span>
+                </div>
+                <div className="text-slate-500">
+                  Áp dụng: Tòa {quoteResult.building} ({quoteResult.policyVersion})
+                </div>
               </div>
-              <div className="space-y-1 pt-0.5">
-                {(policies && policies.length > 0 ? policies : [policy]).map((p: any, idx: number) => (
-                  <div key={p.id || idx} className="flex items-start justify-between gap-2 pl-1">
-                    <div className="flex items-start gap-1.5">
-                      <span className="text-blue-600 font-bold">•</span>
-                      <div>
-                        <strong className="text-slate-900 font-bold">{p.name}</strong>
-                        {p.description && <span className="text-slate-600"> — {p.description}</span>}
-                      </div>
-                    </div>
-                    {p.groupName && (
-                      <span className="shrink-0 text-[10px] text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium">
-                        {p.groupName}
-                      </span>
-                    )}
+
+              {/* A. Giá căn thô */}
+              <div className="space-y-1 bg-white p-2.5 rounded-lg border border-slate-200 text-slate-700">
+                <div className="font-bold text-slate-900 text-[11px] uppercase tracking-wide text-blue-900 flex justify-between">
+                  <span>A. Giá Trị Căn Hộ Thô:</span>
+                  <span className="text-slate-900">{formatVND(quoteResult.rawPriceGross)}</span>
+                </div>
+                <div className="flex justify-between text-[11px] text-slate-600 pl-2">
+                  <span>• Giá căn thô (chưa VAT):</span>
+                  <span>{formatVND(quoteResult.rawPriceNet)}</span>
+                </div>
+                <div className="flex justify-between text-[11px] text-slate-500 pl-2">
+                  <span>• Thuế VAT căn thô (10%):</span>
+                  <span>+{formatVND(quoteResult.rawPriceVAT)}</span>
+                </div>
+              </div>
+
+              {/* B. Giá hoàn thiện */}
+              <div className="space-y-1 bg-white p-2.5 rounded-lg border border-slate-200 text-slate-700">
+                <div className="font-bold text-slate-900 text-[11px] uppercase tracking-wide text-blue-900 flex justify-between">
+                  <span>B. Giá Trị Hoàn Thiện (Căn {quoteResult.unitType} - {quoteResult.netArea} m²):</span>
+                  <span className="text-slate-900">{formatVND(quoteResult.completionGross)}</span>
+                </div>
+                <div className="flex justify-between text-[11px] text-slate-600 pl-2">
+                  <span>• Đơn giá hoàn thiện:</span>
+                  <span className="font-semibold text-blue-800">
+                    {formatVND(quoteResult.completionRate)} / m²
+                  </span>
+                </div>
+                <div className="flex justify-between text-[11px] text-slate-600 pl-2">
+                  <span>• Hoàn thiện (chưa VAT):</span>
+                  <span>{formatVND(quoteResult.completionNet)}</span>
+                </div>
+                <div className="flex justify-between text-[11px] text-slate-500 pl-2">
+                  <span>• Thuế VAT hoàn thiện (10%):</span>
+                  <span>+{formatVND(quoteResult.completionVAT)}</span>
+                </div>
+              </div>
+
+              {/* C. KPBT */}
+              <div className="flex justify-between items-center px-2.5 py-1.5 bg-slate-100 rounded-lg text-slate-700 text-[11px]">
+                <div>
+                  <strong>C. Kinh phí bảo trì (KPBT 2%):</strong>
+                  <span className="text-slate-500 block text-[10px]">Thu khi bàn giao căn hộ, không trừ vào HĐMB</span>
+                </div>
+                <span className="font-semibold text-slate-900">{formatVND(quoteResult.kpbt)}</span>
+              </div>
+
+              {/* D. Tổng trước ưu đãi */}
+              <div className="flex justify-between items-center py-1 border-t border-slate-200 text-sm font-bold text-slate-800">
+                <span>TỔNG GIÁ TRỊ GỒM VAT TRƯỚC CHIẾT KHẤU (A + B):</span>
+                <span className="text-slate-900 text-base">{formatVND(quoteResult.subtotalGross)}</span>
+              </div>
+
+              {/* E. Chiết khấu */}
+              <div className="space-y-1 bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-200 text-slate-700">
+                <div className="font-bold text-emerald-900 text-[11px] uppercase tracking-wide flex justify-between">
+                  <span>D. Chiết Khấu & Ưu Đãi (Cơ sở: Giá thô chưa VAT):</span>
+                  <span className="text-emerald-700 font-black">-{formatVND(quoteResult.totalDiscount)}</span>
+                </div>
+                {quoteResult.noLoanDiscount > 0 && (
+                  <div className="flex justify-between text-[11px] text-slate-600 pl-2">
+                    <span>• Chiết khấu không vay ngân hàng (5% giá thô chưa VAT):</span>
+                    <span className="font-bold text-emerald-700">-{formatVND(quoteResult.noLoanDiscount)}</span>
                   </div>
-                ))}
+                )}
+                {quoteResult.earlyPaymentDiscount > 0 && (
+                  <div className="flex justify-between text-[11px] text-slate-600 pl-2">
+                    <span>• Chiết khấu thanh toán sớm:</span>
+                    <span className="font-bold text-emerald-700">-{formatVND(quoteResult.earlyPaymentDiscount)}</span>
+                  </div>
+                )}
+                {quoteResult.otherDiscounts > 0 && (
+                  <div className="flex justify-between text-[11px] text-slate-600 pl-2">
+                    <span>• Ưu đãi khác:</span>
+                    <span className="font-bold text-emerald-700">-{formatVND(quoteResult.otherDiscounts)}</span>
+                  </div>
+                )}
+                {quoteResult.earlyPaymentInterest > 0 && (
+                  <div className="flex justify-between text-[11px] text-purple-700 font-bold pl-2 pt-1 border-t border-emerald-200">
+                    <span>★ Lãi suất thanh toán sớm (8%/năm cho {quoteResult.earlyDays} ngày):</span>
+                    <span>+{formatVND(quoteResult.earlyPaymentInterest)}</span>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
 
-          {/* Discount Breakdown list */}
-          {discountBreakdown.length > 0 ? (
-            discountBreakdown.map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center text-slate-700 pl-3">
-                <span>
-                  • {item.label} {item.percent ? `(${item.percent}%)` : ''}:
-                </span>
-                <span className="font-semibold text-emerald-700">-{formatVND(item.amount)}</span>
+              {/* Early key notification banner if eligible */}
+              {quoteResult.earlyKeyEligible && (
+                <div className={`p-2.5 rounded-lg border text-xs flex items-center justify-between ${
+                  quoteResult.earlyKeyQualified
+                    ? 'bg-emerald-100 border-emerald-300 text-emerald-950 font-bold'
+                    : 'bg-slate-100 border-slate-300 text-slate-600'
+                }`}>
+                  <span>★ Quyền lợi Sun Early Key (Nhận bàn giao sớm):</span>
+                  <span className="px-2 py-0.5 rounded font-black text-[11px]">
+                    {quoteResult.earlyKeyQualified ? 'ĐỦ ĐIỀU KIỆN (Thanh toán >= 70%)' : 'CHƯA ĐẠT (Cần TT >= 70%)'}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Fallback legacy price display */
+            <>
+              <div className="space-y-1.5 pb-2 border-b border-slate-200 text-slate-600">
+                <div className="flex justify-between items-center">
+                  <span>• Giá bán thuần trước thuế & phí (chưa VAT & KPBT):</span>
+                  <span className="font-medium text-slate-800">{formatVND(netPrice)}</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] text-slate-500">
+                  <span>• Thuế Giá Trị Gia Tăng (VAT 10%):</span>
+                  <span>+{formatVND(vatAmount)}</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] text-slate-500">
+                  <span>• Kinh phí bảo trì phần sở hữu chung (KPBT 2%):</span>
+                  <span>+{formatVND(maintenanceFee)}</span>
+                </div>
               </div>
-            ))
-          ) : totalDiscount > 0 ? (
-            <div className="flex justify-between items-center text-slate-700 pl-3">
-              <span>• Chiết khấu ưu đãi chính sách:</span>
-              <span className="font-semibold text-emerald-700">-{formatVND(totalDiscount)}</span>
-            </div>
-          ) : null}
 
-          {totalDiscount > 0 && (
-            <div className="flex justify-between items-center pt-1.5 border-t border-slate-200 text-emerald-700 font-bold">
-              <span>TỔNG GIÁ TRỊ CHIẾT KHẤU & QUÀ TẶNG CĐT:</span>
-              <span className="text-sm">-{formatVND(totalDiscount)}</span>
-            </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200 text-sm">
+                <span className="font-bold text-slate-700">GIÁ BÁN NIÊM YẾT CHỦ ĐẦU TƯ (GỒM VAT & KPBT):</span>
+                <span className="font-extrabold text-slate-900 text-base">{formatVND(basePrice)}</span>
+              </div>
+
+              {((policies && policies.length > 0) || policy) && (
+                <div className="text-[11px] text-blue-900 bg-blue-50/90 p-3 rounded-xl border border-blue-100 my-1 space-y-1.5">
+                  <div className="flex flex-wrap justify-between items-center gap-1 pb-1 border-b border-blue-200/50">
+                    <span className="font-bold text-blue-950 uppercase tracking-wide text-[10px] flex items-center gap-1">
+                      <span>🏷️</span> Chính sách bán hàng áp dụng ({(policies && policies.length > 0 ? policies : [policy]).length} chính sách):
+                    </span>
+                    <span className="text-[10px] bg-blue-100 px-2 py-0.5 rounded text-blue-800 font-bold">
+                      Quy tắc: {discountMode === 'SEQUENTIAL' ? 'Lũy kế từng phần' : 'Cộng dồn chiết khấu'}
+                    </span>
+                  </div>
+                  <div className="space-y-1 pt-0.5">
+                    {(policies && policies.length > 0 ? policies : [policy]).map((p: any, idx: number) => (
+                      <div key={p.id || idx} className="flex items-start justify-between gap-2 pl-1">
+                        <div className="flex items-start gap-1.5">
+                          <span className="text-blue-600 font-bold">•</span>
+                          <div>
+                            <strong className="text-slate-900 font-bold">{p.name}</strong>
+                            {p.description && <span className="text-slate-600"> — {p.description}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {totalDiscount > 0 && (
+                <div className="flex justify-between items-center pt-1.5 border-t border-slate-200 text-emerald-700 font-bold">
+                  <span>TỔNG GIÁ TRỊ CHIẾT KHẤU & QUÀ TẶNG CĐT:</span>
+                  <span className="text-sm">-{formatVND(totalDiscount)}</span>
+                </div>
+              )}
+            </>
           )}
 
           <div className="flex justify-between items-center pt-3 pb-1 border-t-2 border-slate-900 text-slate-900 font-black text-sm">

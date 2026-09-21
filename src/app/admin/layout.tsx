@@ -5,6 +5,7 @@ const navItems = [
   { label: 'Dashboard', href: '/admin', icon: '📊' },
   { label: 'Căn hộ', href: '/admin/units', icon: '🏢' },
   { label: 'Tòa / Phân khu', href: '/admin/buildings', icon: '🏗️' },
+  { label: 'Bộ Máy Tính Giá', href: '/admin/pricing', icon: '🧮' },
   { label: 'Chính sách CK', href: '/admin/policies', icon: '🏷️' },
   { label: 'Phương án TT', href: '/admin/payment-plans', icon: '📋' },
   { label: 'Chương trình vay', href: '/admin/loan-programs', icon: '🏦' },

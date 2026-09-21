@@ -24,6 +24,12 @@ import {
   getStoredLoanPrograms,
 } from '@/lib/clientStore'
 import {
+  resolveActivePolicy,
+  calculateQuote,
+  formatVNDExact,
+  CalculationResult,
+} from '@/lib/pricing'
+import {
   Building,
   ArrowRight,
   Calculator,
@@ -49,6 +55,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
   const [plansList, setPlansList] = useState<any[]>(paymentPlans)
   const [loansList, setLoansList] = useState<any[]>(loanPrograms)
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
+  const [isBreakdownModalOpen, setIsBreakdownModalOpen] = useState(false)
 
   const [selectedUnitId, setSelectedUnitId] = useState<string>(units[0]?.id || '')
   const [selectedPolicyIds, setSelectedPolicyIds] = useState<string[]>(
@@ -369,6 +376,59 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
         : [],
     })
   }, [priceResult.finalPrice, equityAmount, paymentScheduleResult, selectedPolicy])
+ 
+  // ── OFFICIAL MULTI-POLICY PRICING ENGINE INTEGRATION ──
+  const officialActivePolicy = useMemo(() => {
+    return resolveActivePolicy(selectedBuildingCode)
+  }, [selectedBuildingCode])
+
+  const quoteEngineResult = useMemo<CalculationResult | null>(() => {
+    if (!selectedUnit) return null
+    try {
+      const isLoan = selectedPlan?.type === 'LOAN'
+      const isEarly = selectedPlan?.type === 'FAST' || selectedPlan?.name?.toLowerCase().includes('sớm')
+      const paymentOption = isLoan ? 'LOAN' : isEarly ? 'EARLY_PAYMENT' : 'NO_LOAN'
+
+      let earlyPaymentPercent = 95
+      if (selectedPlan?.name?.includes('70%') || selectedPlan?.description?.includes('70%')) {
+        earlyPaymentPercent = 70
+      } else if (selectedPlan?.name?.includes('50%') || selectedPlan?.description?.includes('50%')) {
+        earlyPaymentPercent = 50
+      }
+
+      return calculateQuote(
+        {
+          unit: {
+            id: selectedUnit.id,
+            building: selectedBuildingCode,
+            floor: selectedUnit.floorNumber || selectedUnit.floor || 1,
+            unitNumber: selectedUnit.unitCode,
+            unitType: selectedUnit.unitTypeName || selectedUnit.unitType || '1BR_PLUS',
+            netArea: selectedUnit.area || 30,
+            basePrice: selectedUnit.basePrice,
+          },
+          policy: officialActivePolicy,
+          paymentOption,
+          earlyPaymentPercent: isEarly ? earlyPaymentPercent : undefined,
+          loanPercent: isLoan ? loanPercent : undefined,
+          annualInterestRate: interestRate,
+          loanTermMonths,
+        },
+        officialActivePolicy
+      )
+    } catch (err) {
+      console.error('Pricing engine calculation error:', err)
+      return null
+    }
+  }, [
+    selectedUnit,
+    selectedBuildingCode,
+    officialActivePolicy,
+    selectedPlan,
+    loanPercent,
+    interestRate,
+    loanTermMonths,
+  ])
 
   // 5. SAVE IMMUTABLE QUOTE SNAPSHOT
   const handleSaveQuote = async () => {
@@ -572,6 +632,59 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
             <span>•</span>
             <span>3BR: <strong className="text-rose-600 font-bold">200tr</strong></span>
           </div>
+        </div>
+      </div>
+
+      {/* ── ACTIVE POLICY BANNER (MULTI-POLICY REAL ESTATE PRICING ENGINE) ── */}
+      <div className="p-4 bg-white border border-blue-200 shadow-sm rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-lg bg-blue-600 text-white font-mono font-black text-xs">
+              {officialActivePolicy.policyCode}
+            </span>
+            <span className="font-bold text-sm text-slate-900">
+              {officialActivePolicy.policyName}
+            </span>
+            <span className="text-[11px] text-slate-500 font-medium">
+              (Hiệu lực từ {officialActivePolicy.effectiveFrom})
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+            <span>
+              🏢 Tòa áp dụng: <strong className="text-slate-900">{officialActivePolicy.buildings.join(', ')}</strong>
+            </span>
+            <span>•</span>
+            <span>
+              🛠️ Hoàn thiện: <strong className={officialActivePolicy.completionPriceIncludesVAT ? 'text-emerald-700 font-bold' : 'text-amber-700 font-bold'}>
+                {officialActivePolicy.completionPriceIncludesVAT ? 'ĐÃ GỒM VAT 10%' : 'CHƯA GỒM VAT'}
+              </strong>
+            </span>
+            <span>•</span>
+            <span>
+              🏦 Vay tối đa: <strong className="text-purple-700 font-bold">
+                {officialActivePolicy.loanRules.loanBasis === 'RAW_PRICE_INCL_VAT' ? '70% Giá thô gồm VAT' : '70% Tổng giá gồm VAT'}
+              </strong>
+            </span>
+            {officialActivePolicy.earlyKeyEligible && (
+              <>
+                <span>•</span>
+                <span className="text-emerald-700 font-black">
+                  ★ Có ưu đãi Sun Early Key (TT &gt;= 70%)
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsBreakdownModalOpen(true)}
+            disabled={!quoteEngineResult}
+            className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+          >
+            <span>🔍</span> Xem Bóc Tách Công Thức (18 Mục)
+          </button>
         </div>
       </div>
 
@@ -1265,6 +1378,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
                   customerEmail={customerEmail}
                   salesName={salesName}
                   salesPhone={salesPhone}
+                  quoteResult={quoteEngineResult}
                 />
               </div>
             </div>
@@ -1312,7 +1426,109 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
             customerEmail={customerEmail}
             salesName={salesName}
             salesPhone={salesPhone}
+            quoteResult={quoteEngineResult}
           />
+        </div>
+      )}
+
+      {/* ── INTERACTIVE 18-ITEM CALCULATION BREAKDOWN MODAL ── */}
+      {isBreakdownModalOpen && quoteEngineResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-4xl w-full my-8 shadow-2xl overflow-hidden border border-slate-200">
+            <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🧮</span>
+                  <h3 className="text-base font-bold">
+                    Bảng Bóc Tách Chi Tiết Công Thức Tính Giá Bất Động Sản (18 Mục)
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Chính sách: <strong className="text-blue-400">{quoteEngineResult.policyCode}</strong> ({quoteEngineResult.policyName}) • Căn: <strong className="text-white">{quoteEngineResult.unitNumber}</strong> ({quoteEngineResult.netArea} m²)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBreakdownModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-white rounded-lg transition text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 max-h-[75vh] overflow-y-auto space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-slate-500 block">Tổng trước chiết khấu:</span>
+                  <strong className="text-slate-900 text-sm">{formatVNDExact(quoteEngineResult.subtotalGross)}</strong>
+                </div>
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                  <span className="text-emerald-700 block">Tổng chiết khấu:</span>
+                  <strong className="text-emerald-800 text-sm">-{formatVNDExact(quoteEngineResult.totalDiscount)}</strong>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
+                  <span className="text-blue-700 block">Giá HĐMB cuối cùng:</span>
+                  <strong className="text-blue-900 text-base font-black">{formatVNDExact(quoteEngineResult.finalPrice)}</strong>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-100 text-slate-700 uppercase font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">Hạng mục cấu thành giá</th>
+                      <th className="p-3 text-right">Số tiền (VNĐ)</th>
+                      <th className="p-3">Công thức tính & Diễn giải nghiệp vụ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {quoteEngineResult.calculationBreakdown.map((item) => (
+                      <tr
+                        key={item.key}
+                        className={
+                          item.category === 'FINAL'
+                            ? 'bg-blue-50/70 font-bold'
+                            : item.category === 'DISCOUNT' && item.amount > 0
+                            ? 'bg-emerald-50/40'
+                            : 'hover:bg-slate-50'
+                        }
+                      >
+                        <td className="p-3 font-semibold text-slate-900">
+                          {item.label}
+                        </td>
+                        <td
+                          className={`p-3 text-right font-bold ${
+                            item.category === 'FINAL'
+                              ? 'text-blue-700 text-sm font-black'
+                              : item.category === 'DISCOUNT' && item.amount > 0
+                              ? 'text-emerald-700 font-black'
+                              : 'text-slate-800'
+                          }`}
+                        >
+                          {item.amount > 0 && item.category === 'DISCOUNT'
+                            ? `-${item.formattedAmount}`
+                            : item.formattedAmount}
+                        </td>
+                        <td className="p-3 text-slate-600 text-[11px] leading-relaxed">
+                          {item.formulaExplanation}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsBreakdownModalOpen(false)}
+                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold transition hover:bg-slate-800"
+              >
+                Đóng bảng bóc tách
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
