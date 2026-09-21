@@ -166,11 +166,81 @@ export async function bulkUpdateUnitPrice(ids: string[], newPrice: number, reaso
   }
 }
 
-// ─── POLICIES ───────────────────────────
+// ─── POLICY FOLDERS (THƯ MỤC CHÍNH SÁCH BÁN HÀNG) ───
+
+export async function savePolicyFolder(data: any) {
+  try {
+    const payload = {
+      name: data.name,
+      description: data.description || null,
+      applicableBuildings: data.applicableBuildings?.trim() || 'ALL',
+      status: data.status || 'ACTIVE',
+      priority: parseInt(data.priority) || 0,
+    }
+
+    let existing = null
+    if (data.id && !String(data.id).startsWith('fb-')) {
+      existing = await prisma.policyFolder.findUnique({ where: { id: data.id } }).catch(() => null)
+    }
+
+    let folder: any = null
+    if (existing) {
+      folder = await prisma.policyFolder.update({ where: { id: existing.id }, data: payload })
+    } else {
+      folder = await prisma.policyFolder.create({
+        data: {
+          id: data.id || undefined,
+          ...payload,
+        },
+      })
+    }
+
+    revalidatePath('/admin/policies')
+    revalidatePath('/')
+    return { success: true, folder }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+export async function deletePolicyFolder(id: string) {
+  try {
+    await prisma.policy.deleteMany({ where: { folderId: id } }).catch(() => {})
+    await prisma.policyFolder.deleteMany({ where: { id } })
+    revalidatePath('/admin/policies')
+    revalidatePath('/')
+    return { success: true }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+export async function updateFolderBuildings(folderId: string, applicableBuildings: string) {
+  try {
+    const formatted = applicableBuildings.trim() || 'ALL'
+    await prisma.policyFolder.update({
+      where: { id: folderId },
+      data: { applicableBuildings: formatted },
+    })
+    // Also sync to child policies for backward compatibility
+    await prisma.policy.updateMany({
+      where: { folderId },
+      data: { applicableBuildings: formatted },
+    }).catch(() => {})
+
+    revalidatePath('/admin/policies')
+    revalidatePath('/')
+    return { success: true }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+// ─── POLICIES (CHÍNH SÁCH CON) ───────────
 
 export async function savePolicy(data: any) {
   try {
-    const payload = {
+    const payload: any = {
       name: data.name,
       description: data.description || null,
       effectiveFrom: data.effectiveFrom ? new Date(data.effectiveFrom) : null,
@@ -186,6 +256,7 @@ export async function savePolicy(data: any) {
       priority: parseInt(data.priority) || 0,
       groupName: data.groupName?.trim() || 'Chính sách chung',
       applicableBuildings: data.applicableBuildings?.trim() || 'ALL',
+      folderId: data.folderId || null,
     }
 
     let existing = null

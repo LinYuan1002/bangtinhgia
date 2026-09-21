@@ -14,9 +14,11 @@ import {
   buildQuoteSnapshot,
 } from '@/lib/calculations'
 import { saveQuote } from '@/app/actions'
+import { FALLBACK_FOLDERS } from '@/lib/fallback-data'
 import { QuotePreview } from './QuotePreview'
 import {
   getStoredUnits,
+  getStoredFolders,
   getStoredPolicies,
   getStoredPaymentPlans,
   getStoredLoanPrograms,
@@ -30,10 +32,9 @@ import {
   FileText,
   CheckCircle2,
   ExternalLink,
-  Share2,
 } from 'lucide-react'
 
-type Props = {
+interface Props {
   units: any[]
   policies: any[]
   paymentPlans: any[]
@@ -43,6 +44,7 @@ type Props = {
 export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = [] }: Props) {
   // Client-persisted lists that survive serverless refreshes
   const [unitsList, setUnitsList] = useState<any[]>(units)
+  const [foldersList, setFoldersList] = useState<any[]>([])
   const [policiesList, setPoliciesList] = useState<any[]>(policies)
   const [plansList, setPlansList] = useState<any[]>(paymentPlans)
   const [loansList, setLoansList] = useState<any[]>(loanPrograms)
@@ -91,6 +93,9 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
       setSelectedUnitId(storedU[0].id)
     }
 
+    const storedF = getStoredFolders(FALLBACK_FOLDERS)
+    setFoldersList(storedF)
+
     const storedP = getStoredPolicies(policies)
     setPoliciesList(storedP)
 
@@ -108,17 +113,20 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
         }
       }
     }
+    const handleFolders = (e: any) => e.detail && setFoldersList(e.detail)
     const handlePolicies = (e: any) => e.detail && setPoliciesList(e.detail)
     const handlePlans = (e: any) => e.detail && setPlansList(e.detail)
     const handleLoans = (e: any) => e.detail && setLoansList(e.detail)
 
     window.addEventListener('sun_units_updated', handleUnits)
+    window.addEventListener('sun_folders_updated', handleFolders)
     window.addEventListener('sun_policies_updated', handlePolicies)
     window.addEventListener('sun_plans_updated', handlePlans)
     window.addEventListener('sun_loans_updated', handleLoans)
 
     return () => {
       window.removeEventListener('sun_units_updated', handleUnits)
+      window.removeEventListener('sun_folders_updated', handleFolders)
       window.removeEventListener('sun_policies_updated', handlePolicies)
       window.removeEventListener('sun_plans_updated', handlePlans)
       window.removeEventListener('sun_loans_updated', handleLoans)
@@ -147,25 +155,45 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
     return (selectedUnit?.buildingCode || selectedUnit?.building || '').trim().toUpperCase()
   }, [selectedUnit])
 
-  // Filter policies applicable to the selected building
+  // Folders assigned to this building
+  const applicableFolders = useMemo(() => {
+    if (!selectedBuildingCode) return foldersList
+    return foldersList.filter((f) => {
+      const app = (f.applicableBuildings || 'ALL').trim().toUpperCase()
+      if (app === 'ALL') return true
+      const bList = app.split(',').map((b: string) => b.trim().toUpperCase())
+      return bList.includes(selectedBuildingCode)
+    })
+  }, [foldersList, selectedBuildingCode])
+
+  const applicableFolderIds = useMemo(() => {
+    return new Set(applicableFolders.map((f) => f.id))
+  }, [applicableFolders])
+
+  // Filter policies applicable to the selected building and its folders
   const availablePolicies = useMemo(() => {
     return policiesList.filter((p) => {
       if (p.status === 'ARCHIVED' || p.status === 'EXPIRED') return false
+      if (p.folderId) {
+        return applicableFolderIds.has(p.folderId)
+      }
       if (!selectedBuildingCode) return true
       const app = (p.applicableBuildings || 'ALL').trim().toUpperCase()
       if (app === 'ALL') return true
       const bList = app.split(',').map((b: string) => b.trim().toUpperCase())
       return bList.includes(selectedBuildingCode)
     })
-  }, [policiesList, selectedBuildingCode])
+  }, [policiesList, applicableFolderIds, selectedBuildingCode])
 
   const activePolicyGroupNames = useMemo(() => {
+    const names = applicableFolders.map((f) => f.name)
+    if (names.length > 0) return names
     const set = new Set<string>()
     availablePolicies.forEach((p) => {
       if (p.groupName?.trim()) set.add(p.groupName.trim())
     })
     return Array.from(set)
-  }, [availablePolicies])
+  }, [applicableFolders, availablePolicies])
 
   // Synchronize selectedPolicyIds when switching building or policies update
   useEffect(() => {
@@ -639,84 +667,111 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
               </div>
             </div>
 
-            {/* Interactive Policy Multi-Choice Grid */}
+            {/* Interactive Policy Multi-Choice Grid (Organized by Folder) */}
             {availablePolicies.length === 0 ? (
               <div className="text-xs text-slate-500 p-6 text-center border border-dashed border-slate-300 rounded-xl bg-slate-50/50 space-y-1">
                 <p className="font-semibold text-slate-700">
-                  Chưa có chính sách nào được kích hoạt cho Tòa {selectedBuildingCode || 'này'}.
+                  Chưa có thư mục chính sách nào được gán cho Tòa {selectedBuildingCode || 'này'}.
                 </p>
                 <p className="text-[11px] text-slate-400">
-                  Vui lòng truy cập trang Quản Trị &gt; Chính Sách để tạo hoặc gán Tòa {selectedBuildingCode} vào nhóm chính sách tương ứng.
+                  Vui lòng truy cập trang Quản Trị &gt; Chính Sách để tạo thư mục và gán cho Tòa {selectedBuildingCode}.
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                {availablePolicies.map((p) => {
-                  const isSelected = selectedPolicyIds.includes(p.id)
-                  const hasPct = (p.discountPercent || 0) > 0
-                  const hasEarly = (p.earlyPaymentDiscountPct || p.earlyPaymentDiscount || 0) > 0
-                  const hasGift = (p.giftValue || p.specialDiscount || 0) > 0
-                  const hasFixed = (p.fixedDiscount || 0) > 0
-                  const groupName = p.groupName?.trim()
+              <div className="space-y-4 pt-1">
+                {(applicableFolders.length > 0
+                  ? applicableFolders
+                  : [{ id: 'default', name: 'Chính sách bán hàng chung', applicableBuildings: 'ALL' }]
+                ).map((folder) => {
+                  const folderPolicies = availablePolicies.filter((p) =>
+                    applicableFolders.length > 0 && p.folderId ? p.folderId === folder.id : true
+                  )
+                  if (folderPolicies.length === 0) return null
+
+                  const isAll = folder.applicableBuildings === 'ALL'
 
                   return (
-                    <div
-                      key={p.id}
-                      onClick={() => togglePolicy(p.id)}
-                      className={`cursor-pointer p-3.5 rounded-xl border transition-all duration-200 flex items-start gap-3 select-none ${
-                        isSelected
-                          ? 'bg-blue-50/90 border-blue-400 shadow-sm ring-2 ring-blue-500/20'
-                          : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
-                      }`}
-                    >
-                      <div className="pt-0.5">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => {}} // click handled by parent container
-                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className={`text-xs font-bold truncate ${isSelected ? 'text-blue-900' : 'text-slate-800'}`}>
-                            {p.name}
+                    <div key={folder.id} className="space-y-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2 bg-blue-50/70 border border-blue-200 px-3.5 py-2 rounded-xl text-xs">
+                        <div className="flex items-center gap-2 font-bold text-blue-950">
+                          <span className="text-base">📁</span>
+                          <span>{folder.name}</span>
+                          <span className="text-[10px] text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full font-bold">
+                            {folderPolicies.length} chính sách
                           </span>
                         </div>
-                        {groupName && (
-                          <div className="mt-0.5">
-                            <span className="text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded font-medium border border-amber-200">
-                              📁 {groupName}
-                            </span>
-                          </div>
-                        )}
-                        {p.description && (
-                          <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
-                            {p.description}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                          {hasPct && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                              CK: {p.discountPercent}%
-                            </span>
-                          )}
-                          {hasEarly && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                              TTS: {p.earlyPaymentDiscountPct || p.earlyPaymentDiscount}%
-                            </span>
-                          )}
-                          {hasGift && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                              Quà: {formatVND(p.giftValue || p.specialDiscount)}
-                            </span>
-                          )}
-                          {hasFixed && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
-                              Giảm: {formatVND(p.fixedDiscount)}
-                            </span>
-                          )}
-                        </div>
+                        <span className="text-[11px] font-semibold text-indigo-800 bg-white px-2.5 py-0.5 rounded-md border border-blue-200">
+                          🏢 Gán cho: {isAll ? 'Tất cả các tòa' : `Tòa ${folder.applicableBuildings}`}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {folderPolicies.map((p) => {
+                          const isSelected = selectedPolicyIds.includes(p.id)
+                          const hasPct = (p.discountPercent || 0) > 0
+                          const hasEarly = (p.earlyPaymentDiscountPct || p.earlyPaymentDiscount || 0) > 0
+                          const hasGift = (p.giftValue || p.specialDiscount || 0) > 0
+                          const hasFixed = (p.fixedDiscount || 0) > 0
+
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => togglePolicy(p.id)}
+                              className={`cursor-pointer p-3.5 rounded-xl border transition-all duration-200 flex items-start gap-3 select-none ${
+                                isSelected
+                                  ? 'bg-blue-50/90 border-blue-400 shadow-sm ring-2 ring-blue-500/20'
+                                  : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+                              }`}
+                            >
+                              <div className="pt-0.5">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => {}} // click handled by parent container
+                                  className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span
+                                    className={`text-xs font-bold truncate ${
+                                      isSelected ? 'text-blue-900' : 'text-slate-800'
+                                    }`}
+                                  >
+                                    {p.name}
+                                  </span>
+                                </div>
+                                {p.description && (
+                                  <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                                    {p.description}
+                                  </p>
+                                )}
+                                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                  {hasPct && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                                      CK: {p.discountPercent}%
+                                    </span>
+                                  )}
+                                  {hasEarly && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                                      TTS: {p.earlyPaymentDiscountPct || p.earlyPaymentDiscount}%
+                                    </span>
+                                  )}
+                                  {hasGift && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                                      Quà: {formatVND(p.giftValue || p.specialDiscount)}
+                                    </span>
+                                  )}
+                                  {hasFixed && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                                      Giảm: {formatVND(p.fixedDiscount)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )

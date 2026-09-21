@@ -6,7 +6,16 @@ export const revalidate = 0
 
 export default async function PoliciesPage() {
   let policies: any[] = []
+  let folders: any[] = []
   let availableBuildings: string[] = ['P12', 'P11', 'S1', 'S2']
+
+  try {
+    folders = await prisma.policyFolder.findMany({
+      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
+    })
+  } catch (err) {
+    console.warn('[PoliciesPage] Failed to fetch folders:', err)
+  }
 
   try {
     policies = await prisma.policy.findMany({
@@ -29,5 +38,11 @@ export default async function PoliciesPage() {
     console.warn('[PoliciesPage] Failed to fetch buildings:', err)
   }
 
-  return <PoliciesClient initialPolicies={policies} availableBuildings={availableBuildings} />
+  return (
+    <PoliciesClient
+      initialPolicies={policies}
+      initialFolders={folders}
+      availableBuildings={availableBuildings}
+    />
+  )
 }

@@ -7,12 +7,13 @@
 // ─────────────────────────────────────────────────────────────
 
 const STORAGE_KEYS = {
-  UNITS: 'sun_urban_units_v5',
-  POLICIES: 'sun_urban_policies_v5',
-  PAYMENT_PLANS: 'sun_urban_plans_v5',
-  LOAN_PROGRAMS: 'sun_urban_loans_v5',
-  IS_INITIALIZED: 'sun_urban_initialized_v5',
-  CLEARED_SAMPLES: 'sun_urban_cleared_samples_v5',
+  UNITS: 'sun_urban_units_v6',
+  FOLDERS: 'sun_urban_folders_v6',
+  POLICIES: 'sun_urban_policies_v6',
+  PAYMENT_PLANS: 'sun_urban_plans_v6',
+  LOAN_PROGRAMS: 'sun_urban_loans_v6',
+  IS_INITIALIZED: 'sun_urban_initialized_v6',
+  CLEARED_SAMPLES: 'sun_urban_cleared_samples_v6',
 }
 
 // ─── UNITS STORE ──────────────────────────────────────────────
@@ -101,6 +102,53 @@ export function resetStoredUnitsToDefault(fallbackUnits: any[]): any[] {
   } catch {
     return fallbackUnits
   }
+}
+
+// ─── POLICY FOLDERS STORE ─────────────────────────────────────
+
+export function getStoredFolders(fallbackFolders: any[]): any[] {
+  if (typeof window === 'undefined') return fallbackFolders
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.FOLDERS)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+    if (fallbackFolders && fallbackFolders.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(fallbackFolders))
+    }
+    return fallbackFolders
+  } catch {
+    return fallbackFolders
+  }
+}
+
+export function saveStoredFolders(folders: any[]): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(folders))
+    window.dispatchEvent(new CustomEvent('sun_folders_updated', { detail: folders }))
+  } catch (err) {
+    console.warn('[clientStore] Failed to save folders:', err)
+  }
+}
+
+export function addOrUpdateStoredFolder(folder: any, currentFolders: any[]): any[] {
+  const index = currentFolders.findIndex((f) => f.id === folder.id)
+  let updated: any[]
+  if (index >= 0) {
+    updated = currentFolders.map((f, i) => (i === index ? { ...f, ...folder } : f))
+  } else {
+    updated = [folder, ...currentFolders]
+  }
+  saveStoredFolders(updated)
+  return updated
+}
+
+export function deleteStoredFolder(id: string, currentFolders: any[]): any[] {
+  const updated = currentFolders.filter((f) => f.id !== id)
+  saveStoredFolders(updated)
+  return updated
 }
 
 // ─── POLICIES STORE ───────────────────────────────────────────

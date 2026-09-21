@@ -108,9 +108,22 @@ export const SCHEMA_STATEMENTS = [
     "priority" INTEGER NOT NULL DEFAULT 0,
     "groupName" TEXT DEFAULT 'Chính sách chung',
     "applicableBuildings" TEXT DEFAULT 'ALL',
+    "folderId" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "Policy_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+  );`,
+
+  // 7b. PolicyFolder
+  `CREATE TABLE IF NOT EXISTS "PolicyFolder" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "applicableBuildings" TEXT NOT NULL DEFAULT 'ALL',
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "priority" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   );`,
 
   // 8. PaymentPlan
@@ -294,10 +307,25 @@ export async function ensureDatabaseSchema(client?: Client): Promise<{
 
     // Migrate columns for Policy if not existing
     try {
+      await db.execute(`CREATE TABLE IF NOT EXISTS "PolicyFolder" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "description" TEXT,
+        "applicableBuildings" TEXT NOT NULL DEFAULT 'ALL',
+        "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+        "priority" INTEGER NOT NULL DEFAULT 0,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`)
+    } catch {}
+    try {
       await db.execute('ALTER TABLE "Policy" ADD COLUMN "groupName" TEXT DEFAULT \'Chính sách chung\';')
     } catch {}
     try {
       await db.execute('ALTER TABLE "Policy" ADD COLUMN "applicableBuildings" TEXT DEFAULT \'ALL\';')
+    } catch {}
+    try {
+      await db.execute('ALTER TABLE "Policy" ADD COLUMN "folderId" TEXT;')
     } catch {}
 
     // Check row counts
@@ -365,21 +393,34 @@ export async function seedInitialDataIfEmpty(client?: Client) {
       args: ['bld-s1', 'proj-suc', 'Tòa S1', 'S1', 25],
     })
 
+    // Seed PolicyFolders
+    const initialFolders = [
+      ['folder-p12', 'CSBH Tòa P12 - Quỹ Độc Quyền', 'Chính sách bán hàng áp dụng cho Tòa P12', 'P12', 'ACTIVE', 1],
+      ['folder-s1-s2', 'CSBH Mở Bán Tòa S1 - S2', 'Chính sách bán hàng áp dụng cho Tòa S1 và S2', 'S1,S2', 'ACTIVE', 2],
+    ]
+    for (const f of initialFolders) {
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO "PolicyFolder" (id, name, description, applicableBuildings, status, priority)
+              VALUES (?, ?, ?, ?, ?, ?)`,
+        args: f,
+      })
+    }
+
     // Seed CSBH T9/2026 Policies
     const realPolicies = [
-      ['policy-eb-1', 'Early Bird (EB) - Chiết khấu 1%', 'Chiết khấu 1% trực tiếp vào giá bán niêm yết', 1, 0, 0, 0, 'SEQUENTIAL', 'ACTIVE', 1, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12'],
-      ['policy-khong-vay-5', 'Không vay ngân hàng - Chiết khấu 5%', 'Chiết khấu 5% vào giá bán cho khách hàng thanh toán bằng vốn tự có', 5, 0, 0, 0, 'SEQUENTIAL', 'ACTIVE', 2, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12'],
-      ['policy-blnh-1', 'Không nhận chứng thư BLNH - Chiết khấu 1%', 'Chiết khấu 1% tạm tính cho khách hàng không nhận bảo lãnh ngân hàng', 1, 0, 0, 0, 'SEQUENTIAL', 'ACTIVE', 3, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12'],
-      ['policy-tts-95', 'Thanh toán sớm 95% (Đến 25/09/2026) - CK 9.5%', 'Chiết khấu 9.5% khi hoàn thành thanh toán sớm 95% muộn nhất 25/09/2026', 9.5, 0, 9.5, 0, 'SEQUENTIAL', 'ACTIVE', 4, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12'],
-      ['policy-tts-70', 'Thanh toán sớm 70% (Đến 25/09/2026) - CK 4.5%', 'Chiết khấu 4.5% khi hoàn thành thanh toán sớm 70% muộn nhất 25/09/2026', 4.5, 0, 4.5, 0, 'SEQUENTIAL', 'ACTIVE', 5, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12'],
-      ['policy-tts-50', 'Thanh toán sớm 50% (Đến 25/09/2026) - CK 1.5%', 'Chiết khấu 1.5% khi hoàn thành thanh toán sớm 50% muộn nhất 25/09/2026', 1.5, 0, 1.5, 0, 'SEQUENTIAL', 'ACTIVE', 6, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12'],
-      ['policy-s1-eb', 'Ưu đãi Khách hàng thân thiết Tòa S1, S2', 'Chiết khấu 2% tri ân khách hàng thân thiết Sun Group', 2, 0, 0, 0, 'STACKED', 'ACTIVE', 1, 'CSBH Mở Bán Tòa S1 - S2', 'S1,S2'],
-      ['policy-s1-gift', 'Gói quà tặng nội thất cao cấp S1, S2', 'Tặng gói voucher nội thất trị giá 30 triệu đồng', 0, 0, 0, 30000000, 'STACKED', 'ACTIVE', 2, 'CSBH Mở Bán Tòa S1 - S2', 'S1,S2'],
+      ['policy-eb-1', 'Early Bird (EB) - Chiết khấu 1%', 'Chiết khấu 1% trực tiếp vào giá bán niêm yết', 1, 0, 0, 0, 'SEQUENTIAL', 'ACTIVE', 1, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12', 'folder-p12'],
+      ['policy-khong-vay-5', 'Không vay ngân hàng - Chiết khấu 5%', 'Chiết khấu 5% vào giá bán cho khách hàng thanh toán bằng vốn tự có', 5, 0, 0, 0, 'SEQUENTIAL', 'ACTIVE', 2, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12', 'folder-p12'],
+      ['policy-blnh-1', 'Không nhận chứng thư BLNH - Chiết khấu 1%', 'Chiết khấu 1% tạm tính cho khách hàng không nhận bảo lãnh ngân hàng', 1, 0, 0, 0, 'SEQUENTIAL', 'ACTIVE', 3, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12', 'folder-p12'],
+      ['policy-tts-95', 'Thanh toán sớm 95% (Đến 25/09/2026) - CK 9.5%', 'Chiết khấu 9.5% khi hoàn thành thanh toán sớm 95% muộn nhất 25/09/2026', 9.5, 0, 9.5, 0, 'SEQUENTIAL', 'ACTIVE', 4, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12', 'folder-p12'],
+      ['policy-tts-70', 'Thanh toán sớm 70% (Đến 25/09/2026) - CK 4.5%', 'Chiết khấu 4.5% khi hoàn thành thanh toán sớm 70% muộn nhất 25/09/2026', 4.5, 0, 4.5, 0, 'SEQUENTIAL', 'ACTIVE', 5, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12', 'folder-p12'],
+      ['policy-tts-50', 'Thanh toán sớm 50% (Đến 25/09/2026) - CK 1.5%', 'Chiết khấu 1.5% khi hoàn thành thanh toán sớm 50% muộn nhất 25/09/2026', 1.5, 0, 1.5, 0, 'SEQUENTIAL', 'ACTIVE', 6, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12', 'folder-p12'],
+      ['policy-s1-eb', 'Ưu đãi Khách hàng thân thiết Tòa S1, S2', 'Chiết khấu 2% tri ân khách hàng thân thiết Sun Group', 2, 0, 0, 0, 'STACKED', 'ACTIVE', 1, 'CSBH Mở Bán Tòa S1 - S2', 'S1,S2', 'folder-s1-s2'],
+      ['policy-s1-gift', 'Gói quà tặng nội thất cao cấp S1, S2', 'Tặng gói voucher nội thất trị giá 30 triệu đồng', 0, 0, 0, 30000000, 'STACKED', 'ACTIVE', 2, 'CSBH Mở Bán Tòa S1 - S2', 'S1,S2', 'folder-s1-s2'],
     ]
     for (const p of realPolicies) {
       await db.execute({
-        sql: `INSERT OR REPLACE INTO "Policy" (id, name, description, discountPercent, fixedDiscount, earlyPaymentDiscountPct, giftValue, discountMode, status, priority, groupName, applicableBuildings)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT OR REPLACE INTO "Policy" (id, name, description, discountPercent, fixedDiscount, earlyPaymentDiscountPct, giftValue, discountMode, status, priority, groupName, applicableBuildings, folderId)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: p,
       })
     }

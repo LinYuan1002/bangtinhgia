@@ -23,6 +23,8 @@ const FALLBACK_UNITS = [
   { id: 'unit-p12-0923', unitCode: 'P120923', buildingCode: 'P12', floorNumber: 9, unitTypeName: '1BR+', area: 46.9, bedrooms: 1, bathrooms: 1, direction: 'Tây', view: 'đường 36m', basePrice: 2338036574, pricePerM2: Math.round(2338036574 / 46.9), status: 'AVAILABLE', imageUrl: null },
 ]
 
+import { FALLBACK_FOLDERS } from '@/lib/fallback-data'
+
 const FALLBACK_POLICIES = [
   {
     id: 'policy-eb-1',
@@ -36,6 +38,7 @@ const FALLBACK_POLICIES = [
     giftValue: 0,
     discountMode: 'SEQUENTIAL',
     status: 'ACTIVE',
+    folderId: 'folder-p12',
     groupName: 'CSBH T9/2026 - Quỹ Độc Quyền P12',
     applicableBuildings: 'P12',
   },
@@ -51,6 +54,7 @@ const FALLBACK_POLICIES = [
     giftValue: 0,
     discountMode: 'SEQUENTIAL',
     status: 'ACTIVE',
+    folderId: 'folder-p12',
     groupName: 'CSBH T9/2026 - Quỹ Độc Quyền P12',
     applicableBuildings: 'P12',
   },
@@ -66,6 +70,7 @@ const FALLBACK_POLICIES = [
     giftValue: 0,
     discountMode: 'SEQUENTIAL',
     status: 'ACTIVE',
+    folderId: 'folder-p12',
     groupName: 'CSBH T9/2026 - Quỹ Độc Quyền P12',
     applicableBuildings: 'P12',
   },
@@ -81,6 +86,7 @@ const FALLBACK_POLICIES = [
     giftValue: 0,
     discountMode: 'SEQUENTIAL',
     status: 'ACTIVE',
+    folderId: 'folder-p12',
     groupName: 'CSBH T9/2026 - Quỹ Độc Quyền P12',
     applicableBuildings: 'P12',
   },
@@ -96,6 +102,7 @@ const FALLBACK_POLICIES = [
     giftValue: 0,
     discountMode: 'SEQUENTIAL',
     status: 'ACTIVE',
+    folderId: 'folder-p12',
     groupName: 'CSBH T9/2026 - Quỹ Độc Quyền P12',
     applicableBuildings: 'P12',
   },
@@ -111,6 +118,7 @@ const FALLBACK_POLICIES = [
     giftValue: 0,
     discountMode: 'SEQUENTIAL',
     status: 'ACTIVE',
+    folderId: 'folder-p12',
     groupName: 'CSBH T9/2026 - Quỹ Độc Quyền P12',
     applicableBuildings: 'P12',
   },
@@ -126,6 +134,7 @@ const FALLBACK_POLICIES = [
     giftValue: 0,
     discountMode: 'STACKED',
     status: 'ACTIVE',
+    folderId: 'folder-s1-s2',
     groupName: 'CSBH Mở Bán Tòa S1 - S2',
     applicableBuildings: 'S1,S2',
   },
@@ -141,6 +150,7 @@ const FALLBACK_POLICIES = [
     giftValue: 30000000,
     discountMode: 'STACKED',
     status: 'ACTIVE',
+    folderId: 'folder-s1-s2',
     groupName: 'CSBH Mở Bán Tòa S1 - S2',
     applicableBuildings: 'S1,S2',
   },
@@ -266,11 +276,23 @@ export async function getUnits(filters?: {
   }
 }
 
+export async function getPolicyFolders() {
+  try {
+    return await prisma.policyFolder.findMany({
+      where: { status: 'ACTIVE' },
+      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
+    })
+  } catch (err) {
+    console.warn('[getPolicyFolders] DB connection error, returning fallback:', err)
+    return FALLBACK_FOLDERS
+  }
+}
+
 export async function getPolicies() {
   try {
     return await prisma.policy.findMany({
       where: { status: 'ACTIVE' },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
     })
   } catch (err) {
     console.warn('[getPolicies] DB connection error, returning fallback:', err)
