@@ -184,6 +184,8 @@ export async function savePolicy(data: any) {
       discountMode: data.discountMode || 'STACKED',
       status: data.status || 'DRAFT',
       priority: parseInt(data.priority) || 0,
+      groupName: data.groupName?.trim() || 'Chính sách chung',
+      applicableBuildings: data.applicableBuildings?.trim() || 'ALL',
     }
 
     let existing = null
@@ -201,6 +203,21 @@ export async function savePolicy(data: any) {
     revalidatePath('/admin/policies')
     revalidatePath('/')
     return { success: true, policy }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+export async function updatePolicyGroupBuildings(groupName: string, applicableBuildings: string) {
+  try {
+    const formatted = applicableBuildings.trim() || 'ALL'
+    await prisma.policy.updateMany({
+      where: { groupName },
+      data: { applicableBuildings: formatted },
+    })
+    revalidatePath('/admin/policies')
+    revalidatePath('/')
+    return { success: true }
   } catch (e: any) {
     return { error: e.message }
   }

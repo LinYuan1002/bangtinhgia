@@ -231,7 +231,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
 
           {((policies && policies.length > 0) || policy) && (
             <div className="text-[11px] text-blue-900 bg-blue-50/90 p-3 rounded-xl border border-blue-100 my-1 space-y-1.5">
-              <div className="flex justify-between items-center pb-1 border-b border-blue-200/50">
+              <div className="flex flex-wrap justify-between items-center gap-1 pb-1 border-b border-blue-200/50">
                 <span className="font-bold text-blue-950 uppercase tracking-wide text-[10px] flex items-center gap-1">
                   <span>🏷️</span> Chính sách bán hàng áp dụng ({(policies && policies.length > 0 ? policies : [policy]).length} chính sách):
                 </span>
@@ -241,12 +241,19 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
               </div>
               <div className="space-y-1 pt-0.5">
                 {(policies && policies.length > 0 ? policies : [policy]).map((p: any, idx: number) => (
-                  <div key={p.id || idx} className="flex items-start gap-1.5 pl-1">
-                    <span className="text-blue-600 font-bold">•</span>
-                    <div>
-                      <strong className="text-slate-900 font-bold">{p.name}</strong>
-                      {p.description && <span className="text-slate-600"> — {p.description}</span>}
+                  <div key={p.id || idx} className="flex items-start justify-between gap-2 pl-1">
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">•</span>
+                      <div>
+                        <strong className="text-slate-900 font-bold">{p.name}</strong>
+                        {p.description && <span className="text-slate-600"> — {p.description}</span>}
+                      </div>
                     </div>
+                    {p.groupName && (
+                      <span className="shrink-0 text-[10px] text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium">
+                        {p.groupName}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>

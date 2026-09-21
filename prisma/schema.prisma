@@ -163,6 +163,10 @@ model Policy {
 
   priority                Int      @default(0)
 
+  // Policy Group and Building assignment
+  groupName               String?  @default("Chính sách chung")
+  applicableBuildings     String?  @default("ALL") // "ALL" hoặc "P12,P11", "S1,S2"
+
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 

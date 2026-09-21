@@ -194,12 +194,19 @@ export default async function QuoteViewPage({ params }: Props) {
                   </div>
                   <div className="space-y-1">
                     {policyList.map((p: any, idx: number) => (
-                      <div key={p.id || idx} className="flex items-start gap-1.5 pl-1">
-                        <span className="text-blue-600 font-bold">•</span>
-                        <div>
-                          <strong className="text-slate-900">{p.name}</strong>
-                          {p.description && <span className="text-slate-600"> — {p.description}</span>}
+                      <div key={p.id || idx} className="flex items-start justify-between gap-2 pl-1">
+                        <div className="flex items-start gap-1.5">
+                          <span className="text-blue-600 font-bold">•</span>
+                          <div>
+                            <strong className="text-slate-900">{p.name}</strong>
+                            {p.description && <span className="text-slate-600"> — {p.description}</span>}
+                          </div>
                         </div>
+                        {p.groupName && (
+                          <span className="shrink-0 text-[10px] text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium">
+                            {p.groupName}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>

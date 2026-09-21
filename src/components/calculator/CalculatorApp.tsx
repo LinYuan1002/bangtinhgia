@@ -142,9 +142,51 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
     () => unitsList.find((u) => u.id === selectedUnitId) || unitsList[0] || null,
     [unitsList, selectedUnitId]
   )
+
+  const selectedBuildingCode = useMemo(() => {
+    return (selectedUnit?.buildingCode || selectedUnit?.building || '').trim().toUpperCase()
+  }, [selectedUnit])
+
+  // Filter policies applicable to the selected building
+  const availablePolicies = useMemo(() => {
+    return policiesList.filter((p) => {
+      if (p.status === 'ARCHIVED' || p.status === 'EXPIRED') return false
+      if (!selectedBuildingCode) return true
+      const app = (p.applicableBuildings || 'ALL').trim().toUpperCase()
+      if (app === 'ALL') return true
+      const bList = app.split(',').map((b: string) => b.trim().toUpperCase())
+      return bList.includes(selectedBuildingCode)
+    })
+  }, [policiesList, selectedBuildingCode])
+
+  const activePolicyGroupNames = useMemo(() => {
+    const set = new Set<string>()
+    availablePolicies.forEach((p) => {
+      if (p.groupName?.trim()) set.add(p.groupName.trim())
+    })
+    return Array.from(set)
+  }, [availablePolicies])
+
+  // Synchronize selectedPolicyIds when switching building or policies update
+  useEffect(() => {
+    if (availablePolicies.length === 0) {
+      setSelectedPolicyIds([])
+      return
+    }
+    const validIdSet = new Set(availablePolicies.map((p) => p.id))
+    setSelectedPolicyIds((prev) => {
+      const valid = prev.filter((id) => validIdSet.has(id))
+      // If none of previous selections match the new building, default to selecting all available for this building
+      if (valid.length === 0) {
+        return availablePolicies.map((p) => p.id)
+      }
+      return valid
+    })
+  }, [availablePolicies])
+
   const selectedPolicies = useMemo(
-    () => policiesList.filter((p) => selectedPolicyIds.includes(p.id)),
-    [policiesList, selectedPolicyIds]
+    () => availablePolicies.filter((p) => selectedPolicyIds.includes(p.id)),
+    [availablePolicies, selectedPolicyIds]
   )
   const selectedPolicy = selectedPolicies[0] || null
 
@@ -154,7 +196,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
     )
   }
   const selectAllPolicies = () => {
-    setSelectedPolicyIds(policiesList.map((p) => p.id))
+    setSelectedPolicyIds(availablePolicies.map((p) => p.id))
   }
   const clearAllPolicies = () => {
     setSelectedPolicyIds([])
@@ -526,7 +568,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
             </div>
           </div>
 
-          {/* Section 2: Chính sách & Chiết khấu (Hỗ trợ chọn nhiều chính sách) */}
+          {/* Section 2: Chính sách & Chiết khấu (Phân nhóm theo Tòa) */}
           <div className={`${glassCard} p-6 space-y-4`}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
               <div>
@@ -536,9 +578,19 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
                   </span>
                   Chính Sách Bán Hàng & Chiết Khấu
                 </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Tích chọn một hoặc nhiều chính sách ưu đãi áp dụng đồng thời
-                </p>
+                <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                  <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-200">
+                    🏢 Tòa: {selectedBuildingCode || 'Tất cả'}
+                  </span>
+                  {activePolicyGroupNames.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200">
+                      📁 {activePolicyGroupNames.join(' & ')}
+                    </span>
+                  )}
+                  <span className="text-xs text-slate-500">
+                    ({availablePolicies.length} chính sách áp dụng)
+                  </span>
+                </div>
               </div>
 
               {/* Mode Toggle & Select All Controls */}
@@ -588,18 +640,24 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
             </div>
 
             {/* Interactive Policy Multi-Choice Grid */}
-            {policiesList.length === 0 ? (
-              <div className="text-xs text-slate-400 p-4 text-center border border-dashed rounded-xl">
-                Chưa có chính sách nào. Bạn có thể thêm trong trang Quản trị Admin.
+            {availablePolicies.length === 0 ? (
+              <div className="text-xs text-slate-500 p-6 text-center border border-dashed border-slate-300 rounded-xl bg-slate-50/50 space-y-1">
+                <p className="font-semibold text-slate-700">
+                  Chưa có chính sách nào được kích hoạt cho Tòa {selectedBuildingCode || 'này'}.
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Vui lòng truy cập trang Quản Trị &gt; Chính Sách để tạo hoặc gán Tòa {selectedBuildingCode} vào nhóm chính sách tương ứng.
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                {policiesList.map((p) => {
+                {availablePolicies.map((p) => {
                   const isSelected = selectedPolicyIds.includes(p.id)
                   const hasPct = (p.discountPercent || 0) > 0
                   const hasEarly = (p.earlyPaymentDiscountPct || p.earlyPaymentDiscount || 0) > 0
                   const hasGift = (p.giftValue || p.specialDiscount || 0) > 0
                   const hasFixed = (p.fixedDiscount || 0) > 0
+                  const groupName = p.groupName?.trim()
 
                   return (
                     <div
@@ -625,8 +683,15 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
                             {p.name}
                           </span>
                         </div>
+                        {groupName && (
+                          <div className="mt-0.5">
+                            <span className="text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded font-medium border border-amber-200">
+                              📁 {groupName}
+                            </span>
+                          </div>
+                        )}
                         {p.description && (
-                          <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
+                          <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
                             {p.description}
                           </p>
                         )}
