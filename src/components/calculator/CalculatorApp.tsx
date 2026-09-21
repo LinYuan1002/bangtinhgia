@@ -145,15 +145,68 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
     }
   }
 
+  // ── Available Buildings derived from unitsList ──
+  const availableBuildingsList = useMemo(() => {
+    const set = new Set<string>()
+    unitsList.forEach((u) => {
+      const code = (u.buildingCode || u.building || '').trim().toUpperCase()
+      if (code) set.add(code)
+    })
+    const arr = Array.from(set).sort()
+    return arr.length > 0 ? arr : ['P12']
+  }, [unitsList])
+
+  const [selectedBuilding, setSelectedBuilding] = useState<string>('')
+
+  // Sync selectedBuilding on mount or when availableBuildingsList loads
+  useEffect(() => {
+    if (availableBuildingsList.length > 0) {
+      if (!selectedBuilding || !availableBuildingsList.includes(selectedBuilding)) {
+        const currentUnit = unitsList.find((u) => u.id === selectedUnitId)
+        const unitB = (currentUnit?.buildingCode || currentUnit?.building || '').trim().toUpperCase()
+        if (unitB && availableBuildingsList.includes(unitB)) {
+          setSelectedBuilding(unitB)
+        } else {
+          setSelectedBuilding(availableBuildingsList[0])
+        }
+      }
+    }
+  }, [availableBuildingsList, selectedBuilding, selectedUnitId, unitsList])
+
+  // Units in the selected building
+  const unitsInSelectedBuilding = useMemo(() => {
+    if (!selectedBuilding) return unitsList
+    const filtered = unitsList.filter((u) => {
+      const b = (u.buildingCode || u.building || '').trim().toUpperCase()
+      return b === selectedBuilding
+    })
+    return filtered.length > 0 ? filtered : unitsList
+  }, [unitsList, selectedBuilding])
+
+  // Switch building handler
+  const handleSelectBuilding = (bCode: string) => {
+    setSelectedBuilding(bCode)
+    const matching = unitsList.filter(
+      (u) => (u.buildingCode || u.building || '').trim().toUpperCase() === bCode
+    )
+    if (matching.length > 0) {
+      const exists = matching.some((u) => u.id === selectedUnitId)
+      if (!exists) {
+        setSelectedUnitId(matching[0].id)
+      }
+    }
+  }
+
   // Selected Entities
   const selectedUnit = useMemo(
-    () => unitsList.find((u) => u.id === selectedUnitId) || unitsList[0] || null,
-    [unitsList, selectedUnitId]
+    () => unitsList.find((u) => u.id === selectedUnitId) || unitsInSelectedBuilding[0] || unitsList[0] || null,
+    [unitsList, selectedUnitId, unitsInSelectedBuilding]
   )
 
   const selectedBuildingCode = useMemo(() => {
-    return (selectedUnit?.buildingCode || selectedUnit?.building || '').trim().toUpperCase()
-  }, [selectedUnit])
+    if (selectedBuilding) return selectedBuilding
+    return (selectedUnit?.buildingCode || selectedUnit?.building || 'P12').trim().toUpperCase()
+  }, [selectedBuilding, selectedUnit])
 
   // Folders assigned to this building
   const applicableFolders = useMemo(() => {
@@ -544,26 +597,84 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* ── BƯỚC 1: CHỌN TÒA NHÀ TRƯỚC ── */}
+            <div className="pb-3 border-b border-slate-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">1</span>
+                  <span>Bước 1: Chọn Tòa Nhà</span>
+                </label>
+                <span className="text-[11px] font-normal text-slate-500">
+                  ({availableBuildingsList.length} tòa có căn hộ)
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {availableBuildingsList.map((bCode) => {
+                  const isSelected = (selectedBuilding || selectedBuildingCode) === bCode
+                  const count = unitsList.filter(
+                    (u) => (u.buildingCode || u.building || '').trim().toUpperCase() === bCode
+                  ).length
+
+                  return (
+                    <button
+                      key={bCode}
+                      type="button"
+                      onClick={() => handleSelectBuilding(bCode)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border shadow-xs ${
+                        isSelected
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-blue-500/25 ring-2 ring-blue-500/30'
+                          : 'bg-white text-slate-700 border-slate-300 hover:border-blue-400 hover:bg-blue-50/50'
+                      }`}
+                    >
+                      <span className="text-sm">🏢</span>
+                      <span>Tòa {bCode}</span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                          isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {count} căn
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* ── BƯỚC 2: CHỌN CĂN HỘ ỨNG VỚI TÒA ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Mã căn hộ ({unitsList.length} căn khả dụng)
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">2</span>
+                    <span>Bước 2: Chọn Căn Hộ (Tòa {selectedBuildingCode})</span>
+                  </span>
+                  <span className="text-[11px] font-normal text-slate-500">
+                    ({unitsInSelectedBuilding.length} căn khả dụng)
+                  </span>
                 </label>
                 <select
                   value={selectedUnitId}
                   onChange={(e) => setSelectedUnitId(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500"
                 >
-                  {unitsList.map((u) => (
+                  {unitsInSelectedBuilding.map((u) => (
                     <option key={u.id} value={u.id}>
-                      {u.unitCode} — Tòa {u.buildingCode || u.building} (Tầng {u.floorNumber || u.floor}) - {u.unitTypeName || u.unitType} - {formatVND(u.basePrice)}
+                      {u.unitCode} (Tầng {u.floorNumber || u.floor}) — {u.unitTypeName || u.unitType} — {formatArea(u.area)} — {formatVND(u.basePrice)}
                     </option>
                   ))}
                 </select>
               </div>
 
               {selectedUnit && (
-                <div className="bg-slate-50 p-3 rounded-xl text-xs space-y-1 text-slate-600 border border-slate-100">
+                <div className="bg-slate-50 p-3 rounded-xl text-xs space-y-1.5 text-slate-600 border border-slate-200">
+                  <div className="flex justify-between border-b border-slate-200 pb-1">
+                    <span>Mã căn / Vị trí:</span>
+                    <strong className="text-blue-900 font-bold">
+                      {selectedUnit.unitCode} (Tòa {selectedBuildingCode} - Tầng {selectedUnit.floorNumber || selectedUnit.floor})
+                    </strong>
+                  </div>
                   <div className="flex justify-between">
                     <span>Loại căn:</span>
                     <strong className="text-slate-800">
@@ -571,8 +682,8 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
                     </strong>
                   </div>
                   <div className="flex justify-between">
-                    <span>Diện tích:</span>
-                    <strong className="text-slate-800">{formatArea(selectedUnit.area)}</strong>
+                    <span>Diện tích thông thủy:</span>
+                    <strong className="text-blue-700 font-bold">{formatArea(selectedUnit.area)}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span>Hướng & View:</span>
@@ -580,7 +691,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
                       {selectedUnit.direction || '—'} • {selectedUnit.view || '—'}
                     </strong>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between pt-1 border-t border-slate-200">
                     <span>Mức cọc quy định:</span>
                     <strong className="text-rose-700 font-bold">
                       {(() => {

@@ -62,11 +62,10 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
     day: '2-digit',
   })
 
-  const building = unit?.buildingCode || unit?.building || 'S1'
+  const building = unit?.buildingCode || unit?.building || 'P12'
   const floor = unit?.floorNumber || unit?.floor || 1
   const unitType = unit?.unitTypeName || unit?.unitType || '1PN'
   const area = unit?.area || 0
-  const grossArea = area > 0 ? (area * 1.08).toFixed(1) : '—' // Tim tường ước tính ~1.08x
 
   // Financial calculations: Base price includes VAT (10%) and KPBT (2%) => Total factor 1.12
   const netPrice = basePrice > 0 ? Math.round(basePrice / 1.12) : 0
@@ -180,9 +179,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
             </tr>
             <tr className="border-b border-slate-200 bg-slate-50/70">
               <td className="p-2.5 font-medium text-slate-500">Diện tích thông thủy (NSA):</td>
-              <td className="p-2.5 font-bold text-slate-900 text-sm text-blue-700">{formatArea(area)}</td>
-              <td className="p-2.5 font-medium text-slate-500">Diện tích tim tường (GSA ước tính):</td>
-              <td className="p-2.5 font-medium text-slate-700">{grossArea} m²</td>
+              <td colSpan={3} className="p-2.5 font-bold text-slate-900 text-sm text-blue-700">{formatArea(area)}</td>
             </tr>
             <tr className="border-b border-slate-200">
               <td className="p-2.5 font-medium text-slate-500">Hướng ban công / Hướng cửa:</td>

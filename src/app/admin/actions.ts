@@ -320,6 +320,7 @@ export async function deletePolicy(id: string) {
 
 export async function savePaymentPlan(data: any) {
   try {
+    const planId = data.id || `plan-${Date.now()}`
     let existing = null
     if (data.id && !String(data.id).startsWith('fb-')) {
       existing = await prisma.paymentPlan.findUnique({ where: { id: data.id } }).catch(() => null)
@@ -339,6 +340,7 @@ export async function savePaymentPlan(data: any) {
     } else {
       plan = await prisma.paymentPlan.create({
         data: {
+          id: planId,
           name: data.name,
           type: data.type || 'STANDARD',
           description: data.description || null,
@@ -346,10 +348,31 @@ export async function savePaymentPlan(data: any) {
         },
       })
     }
+
+    // Persist schedule items if provided
+    if (Array.isArray(data.scheduleItems)) {
+      await prisma.paymentScheduleItem.deleteMany({ where: { paymentPlanId: plan.id } }).catch(() => {})
+      if (data.scheduleItems.length > 0) {
+        await prisma.paymentScheduleItem.createMany({
+          data: data.scheduleItems.map((item: any, i: number) => ({
+            id: `sched-${plan.id}-${i + 1}-${Date.now()}`,
+            paymentPlanId: plan.id,
+            stepNumber: i + 1,
+            name: item.name || `Đợt ${i + 1}`,
+            percentage: parseFloat(item.percentage) || 0,
+            fixedAmount: item.fixedAmount ? parseFloat(item.fixedAmount) : null,
+            dueDateNote: item.dueDateNote || null,
+            relativeDays: item.relativeDays ? parseInt(item.relativeDays) : null,
+          })),
+        })
+      }
+    }
+
     revalidatePath('/admin/payment-plans')
     revalidatePath('/')
     return { success: true, plan }
   } catch (e: any) {
+    console.error('[savePaymentPlan] Error:', e)
     return { error: e.message }
   }
 }
@@ -359,6 +382,7 @@ export async function savePaymentScheduleItems(planId: string, items: any[]) {
     await prisma.paymentScheduleItem.deleteMany({ where: { paymentPlanId: planId } })
     await prisma.paymentScheduleItem.createMany({
       data: items.map((item, i) => ({
+        id: `sched-${planId}-${i + 1}-${Date.now()}`,
         paymentPlanId: planId,
         stepNumber: i + 1,
         name: item.name,
