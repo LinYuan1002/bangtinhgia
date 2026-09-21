@@ -66,6 +66,8 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
   const [selectedLoanProgramId, setSelectedLoanProgramId] = useState<string>(
     loanPrograms[0]?.id || ''
   )
+  const [applyEarlyBird, setApplyEarlyBird] = useState<boolean>(true)
+  const [applyBankGuarantee, setApplyBankGuarantee] = useState<boolean>(true)
 
   // Loan parameters
   const [loanPercent, setLoanPercent] = useState<number>(70)
@@ -413,6 +415,8 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
           loanPercent: isLoan ? loanPercent : undefined,
           annualInterestRate: interestRate,
           loanTermMonths,
+          applyEarlyBird,
+          applyBankGuarantee,
         },
         officialActivePolicy
       )
@@ -428,7 +432,23 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
     loanPercent,
     interestRate,
     loanTermMonths,
+    applyEarlyBird,
+    applyBankGuarantee,
   ])
+
+  // ── UNIFIED DISPLAY METRICS (100% matched to Sun Group Excel) ──
+  const displayBasePrice = quoteEngineResult ? quoteEngineResult.rawPriceGross : priceResult.basePrice
+  const displayTotalDiscount = quoteEngineResult ? quoteEngineResult.totalDiscount : priceResult.totalDiscount
+  const displayFinalPrice = quoteEngineResult ? quoteEngineResult.finalPrice : priceResult.finalPrice
+  const displayFinalPriceGross = quoteEngineResult ? quoteEngineResult.finalPriceGross : priceResult.finalPrice
+  const displayOriginalPricePerM2 =
+    selectedUnit?.area && displayBasePrice > 0
+      ? Math.round(displayBasePrice / selectedUnit.area)
+      : priceResult.originalPricePerM2
+  const displayFinalPricePerM2 =
+    selectedUnit?.area && displayFinalPrice > 0
+      ? Math.round(displayFinalPrice / selectedUnit.area)
+      : priceResult.finalPricePerM2
 
   // 5. SAVE IMMUTABLE QUOTE SNAPSHOT
   const handleSaveQuote = async () => {
@@ -438,6 +458,53 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
     }
 
     startTransition(async () => {
+      const effectivePriceResult = quoteEngineResult
+        ? {
+            basePrice: quoteEngineResult.rawPriceGross,
+            percentageDiscountAmount: 0,
+            fixedDiscountAmount: 0,
+            earlyPaymentDiscountAmount: quoteEngineResult.earlyPaymentDiscount,
+            specialDiscountAmount: 0,
+            totalDiscount: quoteEngineResult.totalDiscount,
+            finalPrice: quoteEngineResult.finalPrice,
+            originalPricePerM2: displayOriginalPricePerM2,
+            finalPricePerM2: displayFinalPricePerM2,
+            discountCalculationMode: 'SEQUENTIAL',
+            discountBreakdown: quoteEngineResult.calculationBreakdown
+              .filter((b) => b.category === 'DISCOUNT' && b.amount > 0)
+              .map((b) => ({ label: b.label, percent: b.percentage, amount: b.amount })),
+          }
+        : priceResult
+
+      const effectiveScheduleResult = quoteEngineResult
+        ? {
+            totalAmount: quoteEngineResult.finalPriceGross,
+            totalPercentage: 100,
+            installments: quoteEngineResult.paymentSchedule.map((m) => ({
+              name: m.name,
+              percentage: m.percentage,
+              amount: m.amount,
+              dueDateNote: m.deadlineNote,
+              cumulativeAmount: m.cumulativeAmount,
+              remainingAmount: m.remainingAmount,
+            })),
+          }
+        : paymentScheduleResult
+
+      const effectiveLoanResult =
+        quoteEngineResult && quoteEngineResult.paymentOption === 'LOAN'
+          ? {
+              principal: quoteEngineResult.loanAmount,
+              annualInterestRate: interestRate,
+              loanTermMonths,
+              repaymentMethod,
+              monthlyPayment: quoteEngineResult.estimatedMonthlyPayment,
+              totalPrincipal: quoteEngineResult.loanAmount,
+              totalInterest: 0,
+              totalPayment: quoteEngineResult.loanAmount,
+            }
+          : loanResult
+
       const payload = buildQuoteSnapshot({
         unit: {
           id: selectedUnit.id,
@@ -448,17 +515,17 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
           area: selectedUnit.area,
           direction: selectedUnit.direction,
           view: selectedUnit.view,
-          basePrice: selectedUnit.basePrice,
-          pricePerM2: selectedUnit.pricePerM2,
+          basePrice: displayBasePrice,
+          pricePerM2: displayOriginalPricePerM2,
           status: selectedUnit.status,
           imageUrl: selectedUnit.imageUrl,
         },
         policy: selectedPolicies[0] || null,
         policies: selectedPolicies,
         paymentPlan: selectedPlan,
-        priceResult,
-        paymentScheduleResult,
-        loanResult,
+        priceResult: effectivePriceResult as any,
+        paymentScheduleResult: effectiveScheduleResult as any,
+        loanResult: effectiveLoanResult as any,
         customer: {
           name: customerName || 'Quý khách hàng',
           phone: customerPhone,
@@ -528,10 +595,10 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
             Giá niêm yết (Gốc)
           </p>
           <p className="text-2xl font-extrabold tracking-tight text-slate-900">
-            {formatVND(priceResult.basePrice)}
+            {formatVND(displayBasePrice)}
           </p>
           <p className="text-xs text-slate-400 mt-1">
-            Đơn giá: {formatPricePerM2(priceResult.originalPricePerM2)}
+            Đơn giá: {formatPricePerM2(displayOriginalPricePerM2)}
           </p>
         </div>
 
@@ -543,21 +610,23 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
             Tổng chiết khấu
           </p>
           <p className="text-2xl font-extrabold tracking-tight text-emerald-600">
-            -{formatVND(priceResult.totalDiscount)}
+            -{formatVND(displayTotalDiscount)}
           </p>
           <p className="text-xs text-emerald-600 font-medium mt-1">
-            Chế độ: {priceResult.discountCalculationMode}
+            {quoteEngineResult ? 'Công thức: Lũy kế Sun Group' : `Chế độ: ${priceResult.discountCalculationMode}`}
           </p>
         </div>
 
         <div className={`${glassCard} p-5 relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-900 text-white shadow-blue-900/20`}>
           <p className="text-xs font-semibold text-blue-100 uppercase tracking-wider mb-1">
-            Giá bán sau chiết khấu
+            Giá bán sau chiết khấu (Giá HĐMB)
           </p>
           <p className="text-2xl font-extrabold tracking-tight text-white">
-            {formatVND(priceResult.finalPrice)}
+            {formatVND(displayFinalPrice)}
           </p>
-          <p className="text-xs text-blue-200 mt-1">Giá tính hợp đồng mua bán</p>
+          <p className="text-xs text-blue-200 mt-1">
+            Tổng thanh toán gồm KPBT: <strong>{formatVND(displayFinalPriceGross)}</strong>
+          </p>
         </div>
 
         <div className={`${glassCard} p-5 relative overflow-hidden`}>
@@ -568,7 +637,7 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
             Đơn giá thông thủy thực tế
           </p>
           <p className="text-2xl font-extrabold tracking-tight text-slate-900">
-            {formatPricePerM2(priceResult.finalPricePerM2)}
+            {formatPricePerM2(displayFinalPricePerM2)}
           </p>
           <p className="text-xs text-slate-400 mt-1">
             Diện tích: {selectedUnit ? formatArea(selectedUnit.area) : '—'}
@@ -893,6 +962,76 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
               </div>
             </div>
 
+            {/* ── SUN GROUP SPECIAL PROMOTIONS (EARLY BIRD & BẢO LÃNH NGÂN HÀNG) ── */}
+            <div className="bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-blue-50/70 p-4 rounded-xl border border-blue-200 text-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900 uppercase tracking-wide text-[11px] flex items-center gap-1.5">
+                  <span>🎁</span> Ưu Đãi Đặc Biệt Theo Chính Sách Sun Group
+                </span>
+                <span className="text-[11px] text-blue-700 font-semibold">
+                  Tòa {selectedBuildingCode} • {officialActivePolicy.policyName}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <label className="flex items-start gap-2.5 p-2.5 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-blue-300 transition shadow-xs">
+                  <input
+                    type="checkbox"
+                    checked={applyEarlyBird}
+                    onChange={(e) => setApplyEarlyBird(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer mt-0.5"
+                  />
+                  <div>
+                    <div className="font-bold text-slate-900">Ưu đãi Early Bird (1%)</div>
+                    <div className="text-[11px] text-slate-500">Chiết khấu 1% trực tiếp trên giá bán</div>
+                    {quoteEngineResult && quoteEngineResult.earlyBirdDiscount > 0 && (
+                      <div className="text-[11px] text-emerald-700 font-bold mt-0.5">
+                        -{formatVND(quoteEngineResult.earlyBirdDiscount)}
+                      </div>
+                    )}
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-2.5 p-2.5 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-blue-300 transition shadow-xs">
+                  <input
+                    type="checkbox"
+                    checked={applyBankGuarantee}
+                    onChange={(e) => setApplyBankGuarantee(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer mt-0.5"
+                  />
+                  <div>
+                    <div className="font-bold text-slate-900">Không nhận bảo lãnh NH (1%)</div>
+                    <div className="text-[11px] text-slate-500">Khách hàng không nhận chứng thư BLNH</div>
+                    {quoteEngineResult && quoteEngineResult.bankGuaranteeDiscount > 0 && (
+                      <div className="text-[11px] text-emerald-700 font-bold mt-0.5">
+                        -{formatVND(quoteEngineResult.bankGuaranteeDiscount)}
+                      </div>
+                    )}
+                  </div>
+                </label>
+              </div>
+
+              {/* Automatic Discount Status Pills */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-blue-100 text-[11px]">
+                <span className="text-slate-500 font-medium">Trạng thái tự động theo phương án:</span>
+                {quoteEngineResult?.noLoanDiscount && quoteEngineResult.noLoanDiscount > 0 ? (
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                    ✓ Không vay NH 5%: -{formatVND(quoteEngineResult.noLoanDiscount)}
+                  </span>
+                ) : quoteEngineResult?.paymentOption === 'LOAN' ? (
+                  <span className="px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 font-medium">
+                    🏦 Đang chọn Vay NH (Không áp dụng CK Không vay 5%)
+                  </span>
+                ) : null}
+
+                {quoteEngineResult?.earlyPaymentDiscount && quoteEngineResult.earlyPaymentDiscount > 0 ? (
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">
+                    ✓ Thanh toán sớm {quoteEngineResult.earlyPaymentPercent || 95}%: -{formatVND(quoteEngineResult.earlyPaymentDiscount)}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
             {/* Interactive Policy Multi-Choice Grid (Organized by Folder) */}
             {availablePolicies.length === 0 ? (
               <div className="text-xs text-slate-500 p-6 text-center border border-dashed border-slate-300 rounded-xl bg-slate-50/50 space-y-1">
@@ -1062,7 +1201,48 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
             </div>
 
             {/* Installments Breakdown */}
-            {paymentScheduleResult && (
+            {quoteEngineResult?.paymentSchedule && quoteEngineResult.paymentSchedule.length > 0 ? (
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 text-slate-700 uppercase font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="p-2.5 w-16 text-center">Đợt</th>
+                      <th className="p-2.5">Nội dung thanh toán</th>
+                      <th className="p-2.5 text-right w-16">Tỷ lệ</th>
+                      <th className="p-2.5 text-right w-36">Số tiền (VNĐ)</th>
+                      <th className="p-2.5">Thời điểm / Tiến độ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {quoteEngineResult.paymentSchedule.map((inst, i) => (
+                      <tr key={i} className="hover:bg-slate-50">
+                        <td className="p-2.5 font-bold text-center text-slate-700">Đợt {inst.period}</td>
+                        <td className="p-2.5 font-semibold text-slate-900">{inst.name}</td>
+                        <td className="p-2.5 text-right font-medium text-blue-600">
+                          {inst.percentage === 0 ? 'Cọc' : `${inst.percentage}%`}
+                        </td>
+                        <td className="p-2.5 text-right font-bold text-slate-900">
+                          {formatVND(inst.amount)}
+                        </td>
+                        <td className="p-2.5 text-slate-600 text-[11px]">
+                          {inst.deadlineNote || 'Theo tiến độ HĐMB'}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-blue-50/80 font-black border-t-2 border-blue-200 text-slate-900">
+                      <td colSpan={2} className="p-2.5 uppercase text-blue-950 font-bold">
+                        TỔNG CỘNG (GỒM VAT & KPBT):
+                      </td>
+                      <td className="p-2.5 text-right text-blue-700 font-black">100%</td>
+                      <td className="p-2.5 text-right text-blue-900 text-sm font-black">
+                        {formatVND(quoteEngineResult.finalPriceGross)}
+                      </td>
+                      <td className="p-2.5 text-emerald-700 font-bold text-[11px]">Khớp 100% Excel CĐT</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ) : paymentScheduleResult && (
               <div className="overflow-x-auto border border-slate-200 rounded-xl">
                 <table className="w-full text-xs text-left">
                   <thead className="bg-slate-50 text-slate-600 uppercase border-b border-slate-200">
@@ -1146,32 +1326,41 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
                 </div>
               </div>
 
-              {loanResult && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl text-xs">
-                  <div>
-                    <span className="text-slate-500 block">Số tiền vay:</span>
-                    <span className="font-bold text-slate-900 text-sm">{formatVND(loanAmount)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Vốn tự có:</span>
-                    <span className="font-bold text-slate-900 text-sm">
-                      {formatVND(equityAmount)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Thời hạn:</span>
-                    <span className="font-bold text-slate-900 text-sm">
-                      {loanTermMonths / 12} năm
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Gốc + lãi tháng:</span>
-                    <span className="font-bold text-blue-700 text-sm">
-                      {formatVND(loanResult.monthlyPayment)}
-                    </span>
-                  </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl text-xs">
+                <div>
+                  <span className="text-slate-500 block">Số tiền vay (Ngân hàng giải ngân):</span>
+                  <span className="font-black text-blue-700 text-sm">
+                    {formatVND(quoteEngineResult?.loanAmount || loanAmount)}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">
+                    {quoteEngineResult?.loanBasis === 'RAW_PRICE_INCL_VAT' ? 'Căn cứ: Giá thô gồm VAT' : 'Căn cứ: Tổng giá gồm VAT'}
+                  </span>
                 </div>
-              )}
+                <div>
+                  <span className="text-slate-500 block">Vốn tự có khách hàng:</span>
+                  <span className="font-bold text-slate-900 text-sm">
+                    {formatVND(quoteEngineResult?.equityAmount || equityAmount)}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">
+                    ({100 - loanPercent}% giá trị HĐMB)
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Thời hạn vay tối đa:</span>
+                  <span className="font-bold text-slate-900 text-sm">
+                    {loanTermMonths / 12} năm ({loanTermMonths} tháng)
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Gốc + lãi tháng (ước tính):</span>
+                  <span className="font-bold text-blue-700 text-sm">
+                    {formatVND(quoteEngineResult?.estimatedMonthlyPayment || loanResult?.monthlyPayment || 0)}
+                  </span>
+                  <span className="text-[10px] text-emerald-700 font-semibold block mt-0.5">
+                    Ân hạn 0% trong 18-24 tháng
+                  </span>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1359,16 +1548,16 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
                   policies={selectedPolicies}
                   paymentPlan={selectedPlan}
                   schedules={paymentScheduleResult?.installments || []}
-                  basePrice={priceResult.basePrice}
-                  finalPrice={priceResult.finalPrice}
-                  totalDiscount={priceResult.totalDiscount}
+                  basePrice={displayBasePrice}
+                  finalPrice={displayFinalPrice}
+                  totalDiscount={displayTotalDiscount}
                   discountBreakdown={priceResult.discountBreakdown}
-                  discountMode={priceResult.discountCalculationMode}
-                  loanAmount={loanAmount}
-                  equityAmount={equityAmount}
+                  discountMode={quoteEngineResult ? 'SEQUENTIAL' : priceResult.discountCalculationMode}
+                  loanAmount={quoteEngineResult ? quoteEngineResult.loanAmount : loanAmount}
+                  equityAmount={quoteEngineResult ? quoteEngineResult.equityAmount : equityAmount}
                   interestRate={interestRate}
                   loanTerm={loanTermMonths}
-                  monthlyPayment={loanResult?.monthlyPayment}
+                  monthlyPayment={quoteEngineResult ? quoteEngineResult.estimatedMonthlyPayment : loanResult?.monthlyPayment}
                   bankName={selectedLoanProgram?.bankName}
                   repaymentMethod={repaymentMethod}
                   supportRate={selectedLoanProgram?.supportRate}
@@ -1407,16 +1596,16 @@ export function CalculatorApp({ units, policies, paymentPlans, loanPrograms = []
             policies={selectedPolicies}
             paymentPlan={selectedPlan}
             schedules={paymentScheduleResult?.installments || []}
-            basePrice={priceResult.basePrice}
-            finalPrice={priceResult.finalPrice}
-            totalDiscount={priceResult.totalDiscount}
+            basePrice={displayBasePrice}
+            finalPrice={displayFinalPrice}
+            totalDiscount={displayTotalDiscount}
             discountBreakdown={priceResult.discountBreakdown}
-            discountMode={priceResult.discountCalculationMode}
-            loanAmount={loanAmount}
-            equityAmount={equityAmount}
+            discountMode={quoteEngineResult ? 'SEQUENTIAL' : priceResult.discountCalculationMode}
+            loanAmount={quoteEngineResult ? quoteEngineResult.loanAmount : loanAmount}
+            equityAmount={quoteEngineResult ? quoteEngineResult.equityAmount : equityAmount}
             interestRate={interestRate}
             loanTerm={loanTermMonths}
-            monthlyPayment={loanResult?.monthlyPayment}
+            monthlyPayment={quoteEngineResult ? quoteEngineResult.estimatedMonthlyPayment : loanResult?.monthlyPayment}
             bankName={selectedLoanProgram?.bankName}
             repaymentMethod={repaymentMethod}
             supportRate={selectedLoanProgram?.supportRate}

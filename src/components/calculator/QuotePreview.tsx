@@ -69,22 +69,46 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
   const unitType = unit?.unitTypeName || unit?.unitType || '1PN'
   const area = unit?.area || 0
 
+  const effectiveBasePrice = quoteResult ? quoteResult.rawPriceGross : basePrice
+  const effectiveFinalPrice = quoteResult ? quoteResult.finalPrice : finalPrice
+  const effectiveFinalPriceGross = quoteResult ? quoteResult.finalPriceGross : finalPrice
+  const effectiveTotalDiscount = quoteResult ? quoteResult.totalDiscount : totalDiscount
+  const effectiveLoanAmount = quoteResult ? quoteResult.loanAmount : (loanAmount || 0)
+  const effectiveEquityAmount = quoteResult ? quoteResult.equityAmount : (equityAmount || 0)
+  const effectiveMonthlyPayment = quoteResult ? quoteResult.estimatedMonthlyPayment : (monthlyPayment || 0)
+
   // Financial calculations: Base price includes VAT (10%) and KPBT (2%) => Total factor 1.12
-  const netPrice = basePrice > 0 ? Math.round(basePrice / 1.12) : 0
-  const vatAmount = basePrice > 0 ? Math.round(netPrice * 0.10) : 0
-  const maintenanceFee = basePrice > 0 ? Math.round(netPrice * 0.02) : 0
+  const netPrice = quoteResult ? quoteResult.rawPriceNet : (basePrice > 0 ? Math.round(basePrice / 1.12) : 0)
+  const vatAmount = quoteResult ? quoteResult.rawPriceVAT : (basePrice > 0 ? Math.round(netPrice * 0.10) : 0)
+  const maintenanceFee = quoteResult ? quoteResult.kpbt : (basePrice > 0 ? Math.round(netPrice * 0.02) : 0)
+
+  // Use quoteResult paymentSchedule if available, otherwise fallback to legacy schedules
+  const scheduleSource =
+    quoteResult?.paymentSchedule && quoteResult.paymentSchedule.length > 0
+      ? quoteResult.paymentSchedule.map((m: any) => ({
+          name: m.name,
+          percentage: m.percentage,
+          amount: m.amount,
+          dueDateNote: m.deadlineNote,
+          cumulativeAmount: m.cumulativeAmount,
+          isDeposit: m.period === 1 || m.name?.toLowerCase().includes('cọc'),
+          cumulativePercentage: m.cumulativePercentage,
+        }))
+      : schedules
 
   // Calculate cumulative schedules
   let runPercent = 0
   let runAmount = 0
-  const enrichedSchedules = schedules.map((s, idx) => {
+  const enrichedSchedules = scheduleSource.map((s: any, idx: number) => {
     const pct = Number(s.percentage || s.percentValue || 0)
     const amt = Number(s.amount || 0)
     runPercent += pct
     runAmount += amt
     const isDep = Boolean(s.isDeposit || (idx === 0 && (pct === 0 || s.name?.toLowerCase().includes('cọc'))))
     const cumAmt = s.cumulativeAmount != null ? s.cumulativeAmount : runAmount
-    const cumPct = finalPrice > 0 ? Math.round((cumAmt / finalPrice) * 100) : runPercent
+    const cumPct = s.cumulativePercentage != null
+      ? s.cumulativePercentage
+      : (effectiveFinalPriceGross > 0 ? Math.round((cumAmt / effectiveFinalPriceGross) * 100) : runPercent)
 
     return {
       ...s,
@@ -385,15 +409,20 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
 
           <div className="flex justify-between items-center pt-3 pb-1 border-t-2 border-slate-900 text-slate-900 font-black text-sm">
             <span className="uppercase text-slate-900 tracking-wide">
-              GIÁ BÁN THỰC TẾ HỢP ĐỒNG (SAU CHIẾT KHẤU):
+              GIÁ BÁN THỰC TẾ HỢP ĐỒNG (SAU CHIẾT KHẤU - GIÁ HĐMB):
             </span>
-            <span className="text-blue-700 text-xl font-black">{formatVND(finalPrice)}</span>
+            <span className="text-blue-700 text-xl font-black">{formatVND(effectiveFinalPrice)}</span>
+          </div>
+
+          <div className="flex justify-between items-center text-xs text-slate-700 font-bold bg-slate-100 px-2.5 py-1.5 rounded-lg mt-1">
+            <span>TỔNG GIÁ TRỊ KHÁCH HÀNG THANH TOÁN (GỒM VAT & KPBT):</span>
+            <span className="text-slate-900 text-sm font-black">{formatVND(effectiveFinalPriceGross)}</span>
           </div>
 
           {area > 0 && (
             <div className="flex justify-between items-center text-[11px] text-slate-500 pt-1">
-              <span>Đơn giá thông thủy niêm yết: <strong>{formatPricePerM2(basePrice / area)}</strong></span>
-              <span>Đơn giá thông thủy thực tế: <strong className="text-emerald-700 font-bold">{formatPricePerM2(finalPrice / area)}</strong></span>
+              <span>Đơn giá thông thủy niêm yết: <strong>{formatPricePerM2(effectiveBasePrice / area)}</strong></span>
+              <span>Đơn giá thông thủy thực tế: <strong className="text-emerald-700 font-bold">{formatPricePerM2(effectiveFinalPrice / area)}</strong></span>
             </div>
           )}
         </div>
@@ -448,12 +477,12 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
               ))}
               <tr className="bg-slate-100 font-black border-t-2 border-slate-300">
                 <td colSpan={2} className="border p-2 text-right uppercase text-slate-800">
-                  TỔNG CỘNG:
+                  TỔNG CỘNG (GỒM VAT & KPBT):
                 </td>
                 <td className="border p-2 text-center text-blue-700 font-bold">100%</td>
                 <td className="border p-2 text-center text-blue-700 font-bold">100%</td>
-                <td className="border p-2 text-right text-blue-700 text-sm">{formatVND(finalPrice)}</td>
-                <td className="border p-2 text-right text-blue-700 text-sm">{formatVND(finalPrice)}</td>
+                <td className="border p-2 text-right text-blue-700 text-sm">{formatVND(effectiveFinalPriceGross)}</td>
+                <td className="border p-2 text-right text-blue-700 text-sm">{formatVND(effectiveFinalPriceGross)}</td>
                 <td className="border p-2 text-emerald-700 font-bold text-[11px]">Hoàn tất thanh toán</td>
               </tr>
             </tbody>
@@ -462,7 +491,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
       )}
 
       {/* ── 6. BANK LOAN ESTIMATION ── */}
-      {paymentPlan?.type === 'LOAN' && loanAmount && loanAmount > 0 && (
+      {paymentPlan?.type === 'LOAN' && effectiveLoanAmount > 0 && (
         <div className="page-break-avoid mb-5">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-2 flex items-center gap-1.5">
             <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">4</span>
@@ -476,11 +505,11 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
             </div>
             <div>
               <span className="text-slate-500 text-[11px] block">Vốn tự có (30%):</span>
-              <strong className="text-slate-900 text-sm">{formatVND(equityAmount || 0)}</strong>
+              <strong className="text-slate-900 text-sm">{formatVND(effectiveEquityAmount)}</strong>
             </div>
             <div>
               <span className="text-slate-500 text-[11px] block">Hạn mức vay (70%):</span>
-              <strong className="text-blue-700 text-sm font-black">{formatVND(loanAmount)}</strong>
+              <strong className="text-blue-700 text-sm font-black">{formatVND(effectiveLoanAmount)}</strong>
             </div>
             <div>
               <span className="text-slate-500 text-[11px] block">Thời hạn vay tối đa:</span>
@@ -505,7 +534,7 @@ export const QuotePreview = forwardRef<HTMLDivElement, QuotePreviewProps>((props
               <div>Lãi suất tham chiếu sau ưu đãi: <strong>{interestRate}%/năm</strong></div>
               <div className="text-right">
                 <span className="text-slate-600 mr-1.5">Gốc + lãi dự kiến trả hàng tháng sau ưu đãi:</span>
-                <strong className="text-blue-800 text-sm font-black">{formatVND(monthlyPayment || 0)}</strong>
+                <strong className="text-blue-800 text-sm font-black">{formatVND(effectiveMonthlyPayment)}</strong>
               </div>
             </div>
           </div>

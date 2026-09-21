@@ -8,13 +8,18 @@ import { CalculationInput, PolicyVersion, EarlyPaymentRule } from './types'
 import { roundMoney } from './rounding'
 
 export interface DiscountResult {
+  earlyBirdDiscount: number
+  earlyBirdRate: number
   noLoanDiscount: number         // Chiết khấu không vay
   noLoanDiscountRate: number
+  bankGuaranteeDiscount: number
+  bankGuaranteeRate: number
   earlyPaymentDiscount: number   // Chiết khấu thanh toán sớm
   earlyPaymentDiscountRate: number
   matchedEarlyRule?: EarlyPaymentRule
   otherDiscounts: number         // Ưu đãi khác
   totalDiscount: number          // Tổng chiết khấu trừ vào giá
+  finalGrossAfterDiscounts: number
   earlyPaymentInterest: number   // Lợi ích lãi suất thanh toán sớm (8%/năm nếu >= 10 ngày)
   earlyDays: number
   notes: string[]
@@ -50,36 +55,76 @@ export function findMatchingEarlyRule(
 }
 
 /**
- * Calculates all discounts and early payment benefits
+ * Calculates all discounts and early payment benefits using Sun Group sequential formula
  */
 export function calculateDiscounts(
-  rawPriceNet: number,
-  input: CalculationInput,
-  policy: PolicyVersion
+  price1: number,
+  price2OrInput: number | CalculationInput,
+  inputOrPolicy?: CalculationInput | PolicyVersion,
+  policyArg?: PolicyVersion
 ): DiscountResult {
-  const roundingUnit = policy.roundingUnit || 1
-  const roundingMode = policy.roundingMode || 'ROUND'
+  let basePriceGross: number
+  let rawPriceNet: number
+  let input: CalculationInput
+  let policy: PolicyVersion
+
+  if (typeof price2OrInput === 'number') {
+    basePriceGross = price1
+    rawPriceNet = price2OrInput
+    input = inputOrPolicy as CalculationInput
+    policy = policyArg as PolicyVersion
+  } else {
+    basePriceGross = price1
+    rawPriceNet = price1
+    input = price2OrInput as CalculationInput
+    policy = inputOrPolicy as PolicyVersion
+  }
+
+  const roundingUnit = policy?.roundingUnit || 1
+  const roundingMode = policy?.roundingMode || 'ROUND'
   const notes: string[] = []
 
+  let currentRunning = basePriceGross
+
+  // 1. Early Bird (1% nếu applyEarlyBird !== false)
+  let earlyBirdDiscount = 0
+  const applyEB = input.applyEarlyBird !== false
+  const ebRate = applyEB ? 0.01 : 0
+  if (applyEB) {
+    const afterEB = roundMoney(currentRunning * (1 - ebRate), roundingUnit, roundingMode)
+    earlyBirdDiscount = currentRunning - afterEB
+    currentRunning = afterEB
+    notes.push('Áp dụng ưu đãi Early Bird 1%')
+  }
+
+  // 2. Chiết khấu không vay (5%): Áp dụng khi KHÔNG VAY (Tiến độ chuẩn hoặc Thanh toán sớm)
   let noLoanDiscount = 0
   let noLoanDiscountRate = 0
+  const isLoan = input.paymentOption === 'LOAN'
+  if (!isLoan && policy.noLoanDiscount?.enabled) {
+    noLoanDiscountRate = policy.noLoanDiscount.rate || 0.05
+    const afterNoLoan = roundMoney(currentRunning * (1 - noLoanDiscountRate), roundingUnit, roundingMode)
+    noLoanDiscount = currentRunning - afterNoLoan
+    currentRunning = afterNoLoan
+    notes.push(`Áp dụng chiết khấu không vay ${(noLoanDiscountRate * 100).toFixed(1)}%`)
+  }
+
+  // 3. Bảo lãnh ngân hàng (1% nếu applyBankGuarantee !== false)
+  let bankGuaranteeDiscount = 0
+  const applyBLNH = input.applyBankGuarantee !== false
+  const blnhRate = applyBLNH ? 0.01 : 0
+  if (applyBLNH) {
+    const afterBLNH = roundMoney(currentRunning * (1 - blnhRate), roundingUnit, roundingMode)
+    bankGuaranteeDiscount = currentRunning - afterBLNH
+    currentRunning = afterBLNH
+    notes.push('Áp dụng chiết khấu không nhận bảo lãnh ngân hàng 1%')
+  }
+
+  // 4. Chiết khấu thanh toán sớm (Early Payment Discount)
   let earlyPaymentDiscount = 0
   let earlyPaymentDiscountRate = 0
   let matchedEarlyRule: EarlyPaymentRule | undefined
-  let otherDiscounts = 0
-  let earlyPaymentInterest = 0
-  let earlyDays = 0
 
-  // 1. Chiết khấu không vay (No Loan Discount)
-  // Chỉ áp dụng khi KH chọn phương án KHÔNG VAY (Thanh toán theo tiến độ chuẩn bằng vốn tự có)
-  if (input.paymentOption === 'NO_LOAN' && policy.noLoanDiscount?.enabled) {
-    noLoanDiscountRate = policy.noLoanDiscount.rate
-    noLoanDiscount = roundMoney(rawPriceNet * noLoanDiscountRate, roundingUnit, roundingMode)
-    notes.push(`Áp dụng chiết khấu không vay ${(noLoanDiscountRate * 100).toFixed(1)}% tính trên giá thô chưa VAT`)
-  }
-
-  // 2. Chiết khấu thanh toán sớm (Early Payment Discount)
-  // Áp dụng khi KH chọn phương án THANH TOÁN SỚM
   if (input.paymentOption === 'EARLY_PAYMENT') {
     matchedEarlyRule = findMatchingEarlyRule(
       policy,
@@ -89,29 +134,33 @@ export function calculateDiscounts(
 
     if (matchedEarlyRule) {
       earlyPaymentDiscountRate = matchedEarlyRule.discountRate
-      earlyPaymentDiscount = roundMoney(
-        rawPriceNet * earlyPaymentDiscountRate,
-        roundingUnit,
-        roundingMode
-      )
+      const afterTTS = roundMoney(currentRunning * (1 - earlyPaymentDiscountRate), roundingUnit, roundingMode)
+      earlyPaymentDiscount = currentRunning - afterTTS
+      currentRunning = afterTTS
       notes.push(
-        `Áp dụng chiết khấu thanh toán sớm ${(earlyPaymentDiscountRate * 100).toFixed(1)}% (${matchedEarlyRule.paymentPercent}%, hạn ${matchedEarlyRule.deadlineLabel || matchedEarlyRule.deadline}) tính trên giá thô chưa VAT`
+        `Áp dụng chiết khấu thanh toán sớm ${(earlyPaymentDiscountRate * 100).toFixed(1)}% (${matchedEarlyRule.paymentPercent}%)`
       )
     }
   }
 
-  // 3. Ưu đãi khác (Custom Discounts)
+  // 5. Ưu đãi khác (Custom Discounts)
+  let otherDiscounts = 0
   if (input.customDiscounts && input.customDiscounts.length > 0) {
     for (const d of input.customDiscounts) {
       if (d.amount > 0) {
         otherDiscounts += d.amount
+        currentRunning = Math.max(0, currentRunning - d.amount)
       } else if (d.rate && d.rate > 0) {
-        otherDiscounts += roundMoney(rawPriceNet * d.rate, roundingUnit, roundingMode)
+        const amt = roundMoney(currentRunning * d.rate, roundingUnit, roundingMode)
+        otherDiscounts += amt
+        currentRunning = Math.max(0, currentRunning - amt)
       }
     }
   }
 
-  // 4. Lợi ích lãi suất thanh toán sớm (8%/năm khi thanh toán sớm >= 10 ngày trước hạn)
+  // 6. Lợi ích lãi suất thanh toán sớm (8%/năm khi thanh toán sớm >= 10 ngày trước hạn)
+  let earlyPaymentInterest = 0
+  let earlyDays = 0
   if (input.actualPaymentDate && input.scheduledDueDate) {
     const actual = new Date(input.actualPaymentDate).getTime()
     const scheduled = new Date(input.scheduledDueDate).getTime()
@@ -121,7 +170,6 @@ export function calculateDiscounts(
     if (diffDays >= 10) {
       earlyDays = diffDays
       const interestRate = policy.earlyPaymentInterestRate || 0.08
-      // Áp dụng trên số tiền thanh toán sớm (dựa trên tỷ lệ thanh toán sớm hoặc số tiền thực đóng)
       const baseEarlyAmount = input.earlyPaymentPercent 
         ? (rawPriceNet * (input.earlyPaymentPercent / 100))
         : rawPriceNet
@@ -136,16 +184,21 @@ export function calculateDiscounts(
     }
   }
 
-  const totalDiscount = noLoanDiscount + earlyPaymentDiscount + otherDiscounts
+  const totalDiscount = earlyBirdDiscount + noLoanDiscount + bankGuaranteeDiscount + earlyPaymentDiscount + otherDiscounts
 
   return {
+    earlyBirdDiscount,
+    earlyBirdRate: ebRate,
     noLoanDiscount,
     noLoanDiscountRate,
+    bankGuaranteeDiscount,
+    bankGuaranteeRate: blnhRate,
     earlyPaymentDiscount,
     earlyPaymentDiscountRate,
     matchedEarlyRule,
     otherDiscounts,
     totalDiscount,
+    finalGrossAfterDiscounts: currentRunning,
     earlyPaymentInterest,
     earlyDays,
     notes,

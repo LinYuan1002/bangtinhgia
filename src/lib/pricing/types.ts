@@ -118,6 +118,8 @@ export interface CalculationInput {
   loanPercent?: number             // e.g. 70
   annualInterestRate?: number      // e.g. 8.5
   loanTermMonths?: number          // e.g. 240
+  applyEarlyBird?: boolean         // Early Bird 1% (mặc định bật)
+  applyBankGuarantee?: boolean     // Bảo lãnh ngân hàng 1% (mặc định bật)
   customDiscounts?: {
     name: string
     amount: number
@@ -161,7 +163,8 @@ export interface CalculationResult {
   // A. Giá trị căn hộ thô
   rawPriceNet: number
   rawPriceVAT: number
-  rawPriceGross: number
+  rawPriceGrossExclKPBT: number // Giá HĐMB gốc (gồm 10% VAT, chưa gồm KPBT)
+  rawPriceGross: number         // Giá niêm yết bảng hàng (gồm VAT 10% & KPBT 2%)
 
   // B. Giá trị hoàn thiện
   completionRate: number
@@ -178,13 +181,16 @@ export interface CalculationResult {
   subtotalGross: number
 
   // E. Chiết khấu & Ưu đãi
+  earlyBirdDiscount?: number
+  bankGuaranteeDiscount?: number
   noLoanDiscount: number
   earlyPaymentDiscount: number
   otherDiscounts: number
   totalDiscount: number
 
   // F. Tổng giá trị hợp đồng
-  finalPrice: number
+  finalPrice: number            // Giá tính HĐMB sau chiết khấu (đã gồm 10% VAT)
+  finalPriceGross: number       // Tổng giá thanh toán sau chiết khấu (gồm VAT & KPBT)
 
   // G. Vay ngân hàng & Vốn tự có
   loanBasis: string

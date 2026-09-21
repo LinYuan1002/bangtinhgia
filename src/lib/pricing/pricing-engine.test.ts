@@ -124,10 +124,12 @@ function runTests() {
   // TEST 4: Discount Base strictly on rawPriceNet
   // ───────────────────────────────────────────────────────────
   console.log('\nTest Group 4: Discount Basis on rawPriceNet')
-  const rawPriceNetExpected = Math.round(1_100_000_000 / 1.1) // 1,000,000,000
+  const rawPriceNetExpected = 1_000_000_000
   const inputNoLoan: CalculationInput = {
     unit: studioUnit,
     paymentOption: 'NO_LOAN',
+    applyEarlyBird: false,
+    applyBankGuarantee: false,
   }
   const discountsNoLoan = calculateDiscounts(rawPriceNetExpected, inputNoLoan, polP10)
   // 5% of 1,000,000,000 = 50,000,000
@@ -139,12 +141,14 @@ function runTests() {
     paymentOption: 'EARLY_PAYMENT',
     earlyPaymentPercent: 95,
     earlyPaymentDeadline: '2026-08-25',
+    applyEarlyBird: false,
+    applyBankGuarantee: false,
   }
-  const rawNetP3 = Math.round(1_650_000_000 / 1.1) // 1,500,000,000
+  const rawNetP3 = 1_500_000_000
   const discountsEarly14 = calculateDiscounts(rawNetP3, inputEarlyCS14, polP3)
-  // 12% of 1,500,000,000 = 180,000,000
+  // 12% of remaining (1,500,000,000 * 0.95) = 171,000,000
   assert(discountsEarly14.earlyPaymentDiscountRate === 0.12, 'CSUD14 95% discount rate is 12%')
-  assert(discountsEarly14.earlyPaymentDiscount === 180_000_000, 'CSUD14 12% early discount is 180,000,000', `Got ${discountsEarly14.earlyPaymentDiscount}`)
+  assert(discountsEarly14.earlyPaymentDiscount === 171_000_000, 'CSUD14 12% early discount sequentially after no-loan is 171,000,000', `Got ${discountsEarly14.earlyPaymentDiscount}`)
 
   // ───────────────────────────────────────────────────────────
   // TEST 5: Sun Early Key Eligibility (CSƯĐ16 & CSƯĐ09)
@@ -180,15 +184,16 @@ function runTests() {
   // TEST 6: Loan Basis: RAW_PRICE_INCL_VAT vs TOTAL_PRICE_INCL_VAT
   // ───────────────────────────────────────────────────────────
   console.log('\nTest Group 6: Loan Basis & Calculations')
-  // CSUD13 basis is RAW_PRICE_INCL_VAT -> 70% of 1,100,000,000 = 770,000,000
   const quoteLoanCS13 = calculateQuote({
     unit: studioUnit,
     paymentOption: 'LOAN',
     loanPercent: 70,
+    applyEarlyBird: false,
+    applyBankGuarantee: false,
   })
   assert(quoteLoanCS13.loanBasis === 'RAW_PRICE_INCL_VAT', 'CSUD13 loanBasis is RAW_PRICE_INCL_VAT')
-  assert(quoteLoanCS13.loanAmount === 770_000_000, 'CSUD13 loan is 70% of rawPriceGross (770,000,000)', `Got ${quoteLoanCS13.loanAmount}`)
-  assert(quoteLoanCS13.equityAmount === (quoteLoanCS13.finalPrice - 770_000_000), 'CSUD13 equityAmount = finalPrice - loanAmount')
+  assert(quoteLoanCS13.loanAmount === 756_250_000, 'CSUD13 loan is 70% of rawPriceGrossExclKPBT (756,250,000)', `Got ${quoteLoanCS13.loanAmount}`)
+  assert(quoteLoanCS13.equityAmount === (quoteLoanCS13.finalPrice - quoteLoanCS13.loanAmount), 'CSUD13 equityAmount = finalPrice - loanAmount')
 
   // CSUD16 basis is TOTAL_PRICE_INCL_VAT -> 70% of finalPrice
   const quoteLoanCS16 = calculateQuote({
@@ -226,7 +231,7 @@ function runTests() {
   assert(quoteUnder10Days.earlyPaymentInterest === 0, 'earlyPaymentInterest is 0 when early days < 10')
 
   // ───────────────────────────────────────────────────────────
-  // TEST 8: Payment Schedule Deposit Deduction by Unit Type
+  // TEST 8: Payment Schedule Deposit by Unit Type
   // ───────────────────────────────────────────────────────────
   console.log('\nTest Group 8: Payment Schedule Deposit by Unit Type')
   const schedStudio = generatePaymentSchedule(1_000_000_000, { unit: studioUnit, paymentOption: 'STANDARD' }, polP10)
@@ -249,6 +254,77 @@ function runTests() {
   assert(fullQuote.calculationBreakdown.length >= 15, `Breakdown contains 18 items (found ${fullQuote.calculationBreakdown.length})`)
   const hasFormulas = fullQuote.calculationBreakdown.every((item) => item.formulaExplanation && item.formulaExplanation.length > 0)
   assert(hasFormulas, 'All breakdown items have clear formula explanations')
+
+  // ───────────────────────────────────────────────────────────
+  // TEST 10: Official Sun Group Excel Benchmark (Unit P1203A02)
+  // ───────────────────────────────────────────────────────────
+  console.log('\nTest Group 10: Official Sun Group Excel Benchmark (Unit P1203A02)')
+  const unitP1203A02: UnitData = {
+    id: 'u-p1203a02',
+    building: 'P12',
+    floor: 3,
+    unitNumber: 'P1203A02',
+    unitType: '1BR_PLUS',
+    netArea: 30.2,
+    basePrice: 1_577_154_839, // Giá niêm yết đã gồm VAT & KPBT từ Excel Sun Group
+  }
+
+  // A. Bóc tách giá gốc: 1.12
+  const p12Raw = calculateQuote({ unit: unitP1203A02, paymentOption: 'NO_LOAN' })
+  assert(p12Raw.rawPriceGross === 1_577_154_839, 'P1203A02 rawPriceGross is 1,577_154_839')
+  assert(p12Raw.rawPriceNet === 1_408_173_963, 'P1203A02 rawPriceNet is 1,408_173_963 (divided by 1.12)', `Got ${p12Raw.rawPriceNet}`)
+  assert(p12Raw.rawPriceVAT === 140_817_396, 'P1203A02 rawPriceVAT is 140_817_396 (10% VAT)', `Got ${p12Raw.rawPriceVAT}`)
+
+  // B. Thanh toán sớm 95% (Hạn 25/08/2026): Exact 1,328,975,291
+  const p12TTS95 = calculateQuote({
+    unit: unitP1203A02,
+    paymentOption: 'EARLY_PAYMENT',
+    earlyPaymentPercent: 95,
+    earlyPaymentDeadline: '2026-08-25',
+  })
+  assert(p12TTS95.finalPriceGross === 1_328_975_291, 'P1203A02 TTS 95% finalPriceGross matches Sun Group Excel 1,328,975,291', `Got ${p12TTS95.finalPriceGross}`)
+  const sumSched95 = p12TTS95.paymentSchedule.reduce((sum, m) => sum + m.amount, 0)
+  assert(sumSched95 === 1_328_975_291, 'P1203A02 TTS 95% total schedule installments match 1,328,975,291', `Got ${sumSched95}`)
+
+  // C. Thanh toán sớm 70%: Exact 1,402,399,341
+  const p12TTS70 = calculateQuote({
+    unit: unitP1203A02,
+    paymentOption: 'EARLY_PAYMENT',
+    earlyPaymentPercent: 70,
+    earlyPaymentDeadline: '2026-08-25',
+  })
+  assert(p12TTS70.finalPriceGross === 1_402_399_341, 'P1203A02 TTS 70% finalPriceGross matches Sun Group Excel 1,402,399,341', `Got ${p12TTS70.finalPriceGross}`)
+
+  // D. Thanh toán sớm 50%: Exact 1,446,453,770
+  const p12TTS50 = calculateQuote({
+    unit: unitP1203A02,
+    paymentOption: 'EARLY_PAYMENT',
+    earlyPaymentPercent: 50,
+    earlyPaymentDeadline: '2026-08-25',
+  })
+  assert(p12TTS50.finalPriceGross === 1_446_453_770, 'P1203A02 TTS 50% finalPriceGross matches Sun Group Excel 1,446,453,770', `Got ${p12TTS50.finalPriceGross}`)
+
+  // E. Tiến độ chuẩn (Không vay): Exact 1,468,480,985
+  const p12Std = calculateQuote({
+    unit: unitP1203A02,
+    paymentOption: 'NO_LOAN',
+  })
+  assert(p12Std.finalPriceGross === 1_468_480_985, 'P1203A02 Standard (Không vay) finalPriceGross matches Sun Group Excel 1,468,480,985', `Got ${p12Std.finalPriceGross}`)
+  const sumSchedStd = p12Std.paymentSchedule.reduce((sum, m) => sum + m.amount, 0)
+  assert(sumSchedStd === 1_468_480_985, 'P1203A02 Standard total schedule installments match 1,468,480,985', `Got ${sumSchedStd}`)
+
+  // F. Vay Ngân hàng 70% (HTLS 0%): Exact 1,545,769,458
+  const p12Loan = calculateQuote({
+    unit: unitP1203A02,
+    paymentOption: 'LOAN',
+    loanPercent: 70,
+  })
+  assert(p12Loan.finalPriceGross === 1_545_769_458, 'P1203A02 Loan finalPriceGross matches Sun Group Excel 1,545_769_458', `Got ${p12Loan.finalPriceGross}`)
+  assert(p12Loan.finalPrice === 1_518_166_432, 'P1203A02 Loan Giá HĐMB matches 1,518,166,432', `Got ${p12Loan.finalPrice}`)
+  assert(p12Loan.loanAmount === 1_062_716_502, 'P1203A02 70% loan matches 1,062_716_502', `Got ${p12Loan.loanAmount}`)
+  assert(p12Loan.equityAmount === 455_449_930, 'P1203A02 30% equity matches 455_449_930', `Got ${p12Loan.equityAmount}`)
+  const sumSchedLoan = p12Loan.paymentSchedule.reduce((sum, m) => sum + m.amount, 0)
+  assert(sumSchedLoan === 1_545_769_458, 'P1203A02 Loan total schedule installments match 1,545_769_458', `Got ${sumSchedLoan}`)
 
   // ───────────────────────────────────────────────────────────
   // SUMMARY
