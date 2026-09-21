@@ -63,7 +63,7 @@ const STATUS_MAP: Record<string, { label: string; className: string }> = {
 export default function PoliciesClient({
   initialPolicies,
   initialFolders,
-  availableBuildings = ['P12', 'P11', 'S1', 'S2'],
+  availableBuildings = ['P12'],
 }: Props) {
   const [isPending, startTransition] = useTransition()
 
@@ -104,15 +104,18 @@ export default function PoliciesClient({
   useEffect(() => {
     const fallbackF = initialFolders.length > 0 ? initialFolders : FALLBACK_FOLDERS
     const storedF = getStoredFolders(fallbackF)
-    setFolders(storedF)
+    const cleanedF = storedF.filter((f: any) => f.id !== 'folder-s1-s2')
+    setFolders(cleanedF)
+    saveStoredFolders(cleanedF)
 
     const storedP = getStoredPolicies(initialPolicies)
+    const cleanedP = storedP.filter(
+      (p: any) => p.id !== 'policy-s1-eb' && p.id !== 'policy-s1-gift' && p.folderId !== 'folder-s1-s2'
+    )
     // Auto-link policies to folders if folderId missing
-    const migratedP = storedP.map((p: any) => {
+    const migratedP = cleanedP.map((p: any) => {
       if (!p.folderId) {
-        if (p.applicableBuildings === 'P12') p.folderId = 'folder-p12'
-        else if (p.applicableBuildings === 'S1,S2' || p.applicableBuildings?.includes('S1')) p.folderId = 'folder-s1-s2'
-        else p.folderId = storedF[0]?.id || 'folder-p12'
+        p.folderId = cleanedF[0]?.id || 'folder-p12'
       }
       return p
     })
@@ -291,6 +294,57 @@ export default function PoliciesClient({
   }
 
   // ─────────────────────────────────────────────────────────────
+  // CLEAN REDUNDANT / EMPTY FOLDERS
+  // ─────────────────────────────────────────────────────────────
+
+  const handleCleanRedundantFolders = () => {
+    // Redundant folders are:
+    // 1. Folders with 0 policies
+    // 2. Dummy sample folders like 'folder-s1-s2'
+    const redundant = folders.filter((f) => {
+      const count = policiesByFolder.get(f.id)?.length || 0
+      return count === 0 || f.id === 'folder-s1-s2'
+    })
+
+    if (redundant.length === 0) {
+      showToast('✨ Tất cả thư mục đều đang chứa chính sách hợp lệ. Không có thư mục rỗng cần dọn dẹp!')
+      return
+    }
+
+    const folderNames = redundant
+      .map((f) => `• ${f.name} (Tòa: ${f.applicableBuildings || 'Tất cả'}, Số chính sách: ${policiesByFolder.get(f.id)?.length || 0})`)
+      .join('\n')
+
+    if (
+      !confirm(
+        `Phát hiện ${redundant.length} thư mục rỗng hoặc không sử dụng:\n\n${folderNames}\n\nBạn có chắc chắn muốn dọn dẹp và xóa các thư mục này không?`
+      )
+    ) {
+      return
+    }
+
+    const redundantIds = new Set(redundant.map((f) => f.id))
+    const updatedFolders = folders.filter((f) => !redundantIds.has(f.id))
+    const updatedPolicies = policies.filter((p) => !p.folderId || !redundantIds.has(p.folderId))
+
+    setFolders(updatedFolders)
+    saveStoredFolders(updatedFolders)
+    setPolicies(updatedPolicies)
+    saveStoredPolicies(updatedPolicies)
+    showToast(`🧹 Đã dọn dẹp thành công ${redundant.length} thư mục thừa!`)
+
+    startTransition(async () => {
+      for (const f of redundant) {
+        try {
+          await deletePolicyFolder(f.id)
+        } catch (err) {
+          console.warn('Background deletePolicyFolder err:', err)
+        }
+      }
+    })
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // ASSIGN BUILDINGS TO FOLDER
   // ─────────────────────────────────────────────────────────────
 
@@ -461,12 +515,23 @@ export default function PoliciesClient({
             Mỗi thư mục chứa các chính sách chiết khấu riêng biệt và được <strong>gán cho một hoặc nhiều tòa nhà</strong>.
           </p>
         </div>
-        <button
-          onClick={openCreateFolderModal}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-sm shadow-blue-500/20"
-        >
-          📁 + Tạo Thư Mục Mới
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleCleanRedundantFolders}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-300 hover:border-rose-300 rounded-xl text-sm font-semibold transition shadow-xs"
+            title="Tự động tìm và dọn dẹp các thư mục rỗng hoặc không sử dụng"
+          >
+            🧹 Dọn Dẹp Thư Mục Thừa
+          </button>
+          <button
+            type="button"
+            onClick={openCreateFolderModal}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-sm shadow-blue-500/20"
+          >
+            📁 + Tạo Thư Mục Mới
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}

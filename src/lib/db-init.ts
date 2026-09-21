@@ -383,20 +383,29 @@ export async function seedInitialDataIfEmpty(client?: Client) {
       args: ['proj-suc', 'Sun Urban City', 'SUC', 'Khu đô thị nghỉ dưỡng ngoại ô Sun Urban City Hà Nam'],
     })
 
-    // Seed Building P12 (Quỹ độc quyền) and S1
+    // Seed Building P12 (Quỹ độc quyền)
     await db.execute({
       sql: `INSERT OR IGNORE INTO "Building" (id, projectId, name, code, totalFloors) VALUES (?, ?, ?, ?, ?)`,
       args: ['bld-p12', 'proj-suc', 'Tòa P12 (Quỹ Độc Quyền)', 'P12', 29],
     })
-    await db.execute({
-      sql: `INSERT OR IGNORE INTO "Building" (id, projectId, name, code, totalFloors) VALUES (?, ?, ?, ?, ?)`,
-      args: ['bld-s1', 'proj-suc', 'Tòa S1', 'S1', 25],
-    })
 
-    // Seed PolicyFolders
+    // Auto-cleanup legacy dummy sample folders & policies if present
+    try {
+      await db.execute({
+        sql: `DELETE FROM "Policy" WHERE id IN ('policy-s1-eb', 'policy-s1-gift') OR "folderId" = 'folder-s1-s2'`,
+        args: [],
+      })
+      await db.execute({
+        sql: `DELETE FROM "PolicyFolder" WHERE id = 'folder-s1-s2'`,
+        args: [],
+      })
+    } catch {
+      // ignore
+    }
+
+    // Seed PolicyFolders (Only official active folders)
     const initialFolders = [
       ['folder-p12', 'CSBH Tòa P12 - Quỹ Độc Quyền', 'Chính sách bán hàng áp dụng cho Tòa P12', 'P12', 'ACTIVE', 1],
-      ['folder-s1-s2', 'CSBH Mở Bán Tòa S1 - S2', 'Chính sách bán hàng áp dụng cho Tòa S1 và S2', 'S1,S2', 'ACTIVE', 2],
     ]
     for (const f of initialFolders) {
       await db.execute({
@@ -414,8 +423,6 @@ export async function seedInitialDataIfEmpty(client?: Client) {
       ['policy-tts-95', 'Thanh toán sớm 95% (Đến 25/09/2026) - CK 9.5%', 'Chiết khấu 9.5% khi hoàn thành thanh toán sớm 95% muộn nhất 25/09/2026', 9.5, 0, 9.5, 0, 'SEQUENTIAL', 'ACTIVE', 4, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12', 'folder-p12'],
       ['policy-tts-70', 'Thanh toán sớm 70% (Đến 25/09/2026) - CK 4.5%', 'Chiết khấu 4.5% khi hoàn thành thanh toán sớm 70% muộn nhất 25/09/2026', 4.5, 0, 4.5, 0, 'SEQUENTIAL', 'ACTIVE', 5, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12', 'folder-p12'],
       ['policy-tts-50', 'Thanh toán sớm 50% (Đến 25/09/2026) - CK 1.5%', 'Chiết khấu 1.5% khi hoàn thành thanh toán sớm 50% muộn nhất 25/09/2026', 1.5, 0, 1.5, 0, 'SEQUENTIAL', 'ACTIVE', 6, 'CSBH T9/2026 - Quỹ Độc Quyền', 'P12', 'folder-p12'],
-      ['policy-s1-eb', 'Ưu đãi Khách hàng thân thiết Tòa S1, S2', 'Chiết khấu 2% tri ân khách hàng thân thiết Sun Group', 2, 0, 0, 0, 'STACKED', 'ACTIVE', 1, 'CSBH Mở Bán Tòa S1 - S2', 'S1,S2', 'folder-s1-s2'],
-      ['policy-s1-gift', 'Gói quà tặng nội thất cao cấp S1, S2', 'Tặng gói voucher nội thất trị giá 30 triệu đồng', 0, 0, 0, 30000000, 'STACKED', 'ACTIVE', 2, 'CSBH Mở Bán Tòa S1 - S2', 'S1,S2', 'folder-s1-s2'],
     ]
     for (const p of realPolicies) {
       await db.execute({

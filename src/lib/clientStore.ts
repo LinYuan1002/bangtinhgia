@@ -8,11 +8,11 @@
 
 const STORAGE_KEYS = {
   UNITS: 'sun_urban_units_v6',
-  FOLDERS: 'sun_urban_folders_v6',
-  POLICIES: 'sun_urban_policies_v6',
-  PAYMENT_PLANS: 'sun_urban_plans_v6',
-  LOAN_PROGRAMS: 'sun_urban_loans_v6',
-  IS_INITIALIZED: 'sun_urban_initialized_v6',
+  FOLDERS: 'sun_urban_folders_v7',
+  POLICIES: 'sun_urban_policies_v7',
+  PAYMENT_PLANS: 'sun_urban_plans_v7',
+  LOAN_PROGRAMS: 'sun_urban_loans_v7',
+  IS_INITIALIZED: 'sun_urban_initialized_v7',
   CLEARED_SAMPLES: 'sun_urban_cleared_samples_v6',
 }
 
@@ -111,11 +111,21 @@ export function getStoredFolders(fallbackFolders: any[]): any[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.FOLDERS)
     if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      let parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Automatically purge obsolete/dummy sample folder 'folder-s1-s2'
+        const cleaned = parsed.filter((f) => f.id !== 'folder-s1-s2')
+        if (cleaned.length !== parsed.length) {
+          localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(cleaned))
+          parsed = cleaned
+        }
+        if (parsed.length > 0) return parsed
+      }
     }
     if (fallbackFolders && fallbackFolders.length > 0) {
-      localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(fallbackFolders))
+      const valid = fallbackFolders.filter((f) => f.id !== 'folder-s1-s2')
+      localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(valid))
+      return valid
     }
     return fallbackFolders
   } catch {
@@ -126,8 +136,9 @@ export function getStoredFolders(fallbackFolders: any[]): any[] {
 export function saveStoredFolders(folders: any[]): void {
   if (typeof window === 'undefined') return
   try {
-    localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(folders))
-    window.dispatchEvent(new CustomEvent('sun_folders_updated', { detail: folders }))
+    const cleaned = folders.filter((f) => f.id !== 'folder-s1-s2')
+    localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(cleaned))
+    window.dispatchEvent(new CustomEvent('sun_folders_updated', { detail: cleaned }))
   } catch (err) {
     console.warn('[clientStore] Failed to save folders:', err)
   }
@@ -158,11 +169,25 @@ export function getStoredPolicies(fallbackPolicies: any[]): any[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.POLICIES)
     if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      let parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Automatically purge dummy sample policies
+        const cleaned = parsed.filter(
+          (p) => p.id !== 'policy-s1-eb' && p.id !== 'policy-s1-gift' && p.folderId !== 'folder-s1-s2'
+        )
+        if (cleaned.length !== parsed.length) {
+          localStorage.setItem(STORAGE_KEYS.POLICIES, JSON.stringify(cleaned))
+          parsed = cleaned
+        }
+        if (parsed.length > 0) return parsed
+      }
     }
     if (fallbackPolicies && fallbackPolicies.length > 0) {
-      localStorage.setItem(STORAGE_KEYS.POLICIES, JSON.stringify(fallbackPolicies))
+      const valid = fallbackPolicies.filter(
+        (p) => p.id !== 'policy-s1-eb' && p.id !== 'policy-s1-gift' && p.folderId !== 'folder-s1-s2'
+      )
+      localStorage.setItem(STORAGE_KEYS.POLICIES, JSON.stringify(valid))
+      return valid
     }
     return fallbackPolicies
   } catch {
